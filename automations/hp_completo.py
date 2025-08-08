@@ -1,43 +1,27 @@
-# Importa a função 'execute' de cada um dos nossos scripts modulares.
-# Usamos 'as' para dar nomes únicos e evitar conflitos.
+# Importa a função 'execute' de cada um dos scripts modulares
 from .hp import execute as run_hp
 from .zdp1 import execute as run_zdp1
 from .hp_com import execute as run_hp_com
 
-def execute(session, matriculas, periodo, config, output_base_path):
+# ALTERADO: A assinatura da função agora aceita 'progress_queue'
+def execute(session, matriculas, periodo, config, output_base_path, progress_queue=None):
     """
     Orquestra a execução da sequência completa de Holerites,
-    chamando cada processo modularmente.
+    repassando a fila de progresso para cada módulo.
     """
-    print("--- INICIANDO PROCESSO COMPLETO DE HOLERITES ---")
+    print("--- INICIANDO PROCESSO HP COMPLETO ---")
     
-    # Etapa 1: Executar o processo HP
-    # ----------------------------------------------------
-    sucesso, mensagem = run_hp(session, matriculas, periodo, config, output_base_path)
+    # ALTERADO: O 'progress_queue' é passado para cada chamada
+    sucesso, mensagem = run_hp(session, matriculas, periodo, config, output_base_path, progress_queue)
     if not sucesso:
-        print(f"!!! PROCESSO COMPLETO INTERROMPIDO DEVIDO A ERRO NO HP !!!")
-        # Retorna a mensagem de erro específica do módulo que falhou
         return False, mensagem
     
-    print("--- Etapa HP concluída com sucesso. ---")
-    
-    # Etapa 2: Executar o processo ZDP1
-    # ----------------------------------------------------
-    sucesso, mensagem = run_zdp1(session, matriculas, periodo, config, output_base_path)
+    sucesso, mensagem = run_zdp1(session, matriculas, periodo, config, output_base_path, progress_queue)
     if not sucesso:
-        print(f"!!! PROCESSO COMPLETO INTERROMPIDO DEVIDO A ERRO NO ZDP1 !!!")
+        return False, mensagem
+    
+    sucesso, mensagem = run_hp_com(session, matriculas, periodo, config, output_base_path, progress_queue)
+    if not sucesso:
         return False, mensagem
         
-    print("--- Etapa ZDP1 concluída com sucesso. ---")
-    
-    # Etapa 3: Executar o processo HP-COM
-    # ----------------------------------------------------
-    sucesso, mensagem = run_hp_com(session, matriculas, periodo, config, output_base_path)
-    if not sucesso:
-        print(f"!!! PROCESSO COMPLETO INTERROMPIDO DEVIDO A ERRO NO HP-COM !!!")
-        return False, mensagem
-        
-    print("--- Etapa HP-COM concluída com sucesso. ---")
-    
-    print("\n>>> PROCESSO COMPLETO DE HOLERITES FINALIZADO COM SUCESSO! <<<")
     return True, "Execução completa de Holerites finalizada com sucesso."
