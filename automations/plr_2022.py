@@ -1,51 +1,113 @@
-import time
 import os
-import pyperclip
+import sys
 from datetime import datetime
+import time
+import pyperclip # Importa a biblioteca para a área de transferência
 
-def execute(session, matriculas, periodo, options, base_path):
-    print("--- Iniciando execução de PLR 2022 ---")
-    
-    # --- DADOS FIXOS PARA ESTE PROCESSO ---
-    MES_FIXO = "04"
-    ANO_FIXO = "2022"
-    DATA_BONDT_FIXA = "08.04.2022"
-    
-    hoje = datetime.now().strftime("%d.%m")
-    pasta_data = os.path.join(base_path, hoje)
-    
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+try:
+    from automations.sap_utils import connect_to_sap
+except ImportError:
     try:
-        # A transação é iniciada pelo main_interface.py
-        print("  Selecionando variante 'PLR'...")
-        session.findById("wnd[0]/tbar[1]/btn[17]").press(); time.sleep(1)
-        popup_variante = session.findById("wnd[1]")
-        popup_variante.findById("usr/txtENAME-LOW").text = ""
-        popup_variante.findById("tbar[0]/btn[8]").press()
-        time.sleep(1)
-        grid = popup_variante.findById("usr/cntlALV_CONTAINER_1/shellcont/shell")
-        grid.setCurrentCell(9, "TEXT"); grid.selectedRows = "9"
-        popup_variante.findById("tbar[0]/btn[2]").press(); time.sleep(1)
-        
-        session.findById("wnd[0]/usr/txtPNPPABRP").text = MES_FIXO
-        session.findById("wnd[0]/usr/txtPNPPABRJ").text = ANO_FIXO
-        session.findById("wnd[0]/usr/ctxtBONDT").text = DATA_BONDT_FIXA
-        
-        print(f"  Processando com data fixa: {MES_FIXO}/{ANO_FIXO}")
-        print("  Inserindo matrículas...")
-        session.findById("wnd[0]/usr/btn%_PNPPERNR_%_APP_%-VALU_PUSH").press(); time.sleep(1)
-        pyperclip.copy("\n".join(matriculas))
-        session.findById("wnd[1]/tbar[0]/btn[24]").press(); time.sleep(0.5)
-        session.findById("wnd[1]/tbar[0]/btn[8]").press(); time.sleep(1)
+        from sap_utils import connect_to_sap
+    except ImportError:
+        def connect_to_sap():
+            print("AVISO: A função 'connect_to_sap' não foi encontrada.")
+            return None
 
-        diretorio_saida = os.path.join(pasta_data, "HPL 2022")
-        if not os.path.exists(diretorio_saida): os.makedirs(diretorio_saida)
-        session.findById("wnd[0]/usr/ctxtP_DIR").text = diretorio_saida
+# --- Função de Ajuda Especial para Colar Matrículas ---
+# --- Função de Ajuda Especial para Colar Matrículas ---
+def inserir_matriculas_colando(session, matriculas):
+    """Copia a lista de matrículas para a área de transferência e cola no SAP."""
+    try:
+        # Junta a lista de matrículas em uma única string, separada por quebra de linha
+        matriculas_str = "\n".join(matriculas)
+        pyperclip.copy(matriculas_str)
+
+        session.findById("wnd[0]/usr/btn%_PNPPERNR_%_APP_%-VALU_PUSH").press()
+        time.sleep(1)
+        
+        # Limpa o campo antes de colar
+        session.findById("wnd[1]/tbar[0]/btn[16]").press()
+        time.sleep(1)
+        
+        # CORRIGIDO: Clica no botão "Importar da área de transferência" (btn[24])
+        session.findById("wnd[1]/tbar[0]/btn[24]").press()
+        time.sleep(1)
+        
+        # Confirma a importação
+        session.findById("wnd[1]/tbar[0]/btn[8]").press()
+        return True
+    except Exception as e:
+        print(f"Erro ao colar matrículas: {e}")
+        pyperclip.copy("") # Limpa a área de transferência
+        try: session.findById("wnd[1]/tbar[0]/btn[12]").press()
+        except: pass
+        return False
+
+# --- Função Principal de Execução ---
+def execute(session, matriculas, periodo, config, output_base_path):
+    """Executa o processo de PLR 2022."""
+    try:
+        print("--- Iniciando processo 'PLR 2022' ---")
+        
+        # Valores fixos para este processo
+        MES = "04"
+        ANO = "2022"
+        DATA_BONDT = "08.04.2022"
+        
+        hoje = datetime.now().strftime("%d.%m")
+        pasta_saida_principal = os.path.join(output_base_path, f"HP SAP - {hoje}")
+        os.makedirs(pasta_saida_principal, exist_ok=True)
+        
+        session.startTransaction("PC00_M37_CEDT")
+        time.sleep(1)
+        
+        session.findById("wnd[0]/tbar[1]/btn[17]").press()
+        time.sleep(1)
+
+        session.findById("wnd[1]/usr/txtENAME-LOW").text = ""
+        session.findById("wnd[1]/tbar[0]/btn[8]").press()
+        time.sleep(1)
+        
+        shell = session.findById("wnd[1]/usr/cntlALV_CONTAINER_1/shellcont/shell")
+        shell.setCurrentCell(9, "TEXT")
+        shell.selectedRows = "9"
+        session.findById("wnd[1]/tbar[0]/btn[2]").press()
+        time.sleep(1)
+
+        session.findById("wnd[0]/usr/txtPNPPABRP").text = MES
+        session.findById("wnd[0]/usr/txtPNPPABRJ").text = ANO
+        session.findById("wnd[0]/usr/ctxtBONDT").text = DATA_BONDT
+        
+        if not inserir_matriculas_colando(session, matriculas):
+            return False, "Falha ao inserir matrículas no processo PLR 2022."
+        time.sleep(1)
+        
+        pasta_saida_ano = os.path.join(pasta_saida_principal, "HPL 2022")
+        os.makedirs(pasta_saida_ano, exist_ok=True)
+        session.findById("wnd[0]/usr/ctxtP_DIR").text = pasta_saida_ano
+        
         session.findById("wnd[0]/usr/chkP_BRANCH").selected = True
         session.findById("wnd[0]/usr/chkP_PDF").selected = True
         
         session.findById("wnd[0]/tbar[1]/btn[8]").press()
-        print("    Aguardando processamento...")
-        time.sleep(5)
         
-        return True, "Processo PLR 2022 concluído."
-    except Exception as e: return False, f"Erro em PLR 2022: {e}"
+        while session.Busy:
+            time.sleep(1)
+        
+        session.findById("wnd[0]/tbar[0]/btn[3]").press()
+        time.sleep(1)
+            
+        print("--- Processo 'PLR 2022' finalizado. ---")
+        return True, "PLR 2022 concluído com sucesso."
+
+    except Exception as e:
+        pyperclip.copy("") # Garante que a área de transferência seja limpa em caso de erro
+        print(f"ERRO no processo PLR 2022: {e}")
+        return False, f"Erro no processo PLR 2022: {e}"
+
+# --- Bloco de Teste ---
+if __name__ == "__main__":
+    # ... (bloco de teste padrão) ...
+    pass
