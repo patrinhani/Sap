@@ -2,7 +2,8 @@ import os
 import sys
 from datetime import datetime
 import time
-import pyperclip # Importa a biblioteca para a área de transferência
+
+# pyperclip foi REMOVIDO
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 try:
@@ -15,32 +16,29 @@ except ImportError:
             print("AVISO: A função 'connect_to_sap' não foi encontrada.")
             return None
 
-# --- Função de Ajuda Especial para Colar Matrículas ---
-# --- Função de Ajuda Especial para Colar Matrículas ---
-def inserir_matriculas_colando(session, matriculas):
-    """Copia a lista de matrículas para a área de transferência e cola no SAP."""
+# --- FUNÇÃO DE INSERÇÃO PADRÃO (SEM CLIPBOARD) ---
+def inserir_matriculas(session, matriculas):
+    """Insere as matrículas uma a uma, de forma segura."""
     try:
-        # Junta a lista de matrículas em uma única string, separada por quebra de linha
-        matriculas_str = "\n".join(matriculas)
-        pyperclip.copy(matriculas_str)
-
         session.findById("wnd[0]/usr/btn%_PNPPERNR_%_APP_%-VALU_PUSH").press()
         time.sleep(1)
-        
-        # Limpa o campo antes de colar
+
+        # Limpa o campo antes de inserir
         session.findById("wnd[1]/tbar[0]/btn[16]").press()
         time.sleep(1)
         
-        # CORRIGIDO: Clica no botão "Importar da área de transferência" (btn[24])
-        session.findById("wnd[1]/tbar[0]/btn[24]").press()
+        # Reabre a janela para inserção
+        session.findById("wnd[0]/usr/btn%_PNPPERNR_%_APP_%-VALU_PUSH").press()
         time.sleep(1)
         
-        # Confirma a importação
+        for i, matricula in enumerate(matriculas):
+            session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,1]").text = matricula
+            session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE").verticalScrollbar.position = i + 1
+            
         session.findById("wnd[1]/tbar[0]/btn[8]").press()
         return True
     except Exception as e:
-        print(f"Erro ao colar matrículas: {e}")
-        pyperclip.copy("") # Limpa a área de transferência
+        print(f"Erro ao inserir matrículas: {e}")
         try: session.findById("wnd[1]/tbar[0]/btn[12]").press()
         except: pass
         return False
@@ -51,7 +49,6 @@ def execute(session, matriculas, periodo, config, output_base_path):
     try:
         print("--- Iniciando processo 'PLR 2025' ---")
         
-        # Valores fixos para este processo
         MES = "04"
         ANO = "2025"
         DATA_BONDT = "15.04.2025"
@@ -70,7 +67,6 @@ def execute(session, matriculas, periodo, config, output_base_path):
         session.findById("wnd[1]/tbar[0]/btn[8]").press()
         time.sleep(1)
         
-        # A variante é a mesma do PLR 2022, linha 9
         shell = session.findById("wnd[1]/usr/cntlALV_CONTAINER_1/shellcont/shell")
         shell.setCurrentCell(9, "TEXT")
         shell.selectedRows = "9"
@@ -81,7 +77,8 @@ def execute(session, matriculas, periodo, config, output_base_path):
         session.findById("wnd[0]/usr/txtPNPPABRJ").text = ANO
         session.findById("wnd[0]/usr/ctxtBONDT").text = DATA_BONDT
         
-        if not inserir_matriculas_colando(session, matriculas):
+        # ALTERADO: Chama a função de inserção segura
+        if not inserir_matriculas(session, matriculas):
             return False, "Falha ao inserir matrículas no processo PLR 2025."
         time.sleep(1)
         
@@ -104,11 +101,5 @@ def execute(session, matriculas, periodo, config, output_base_path):
         return True, "PLR 2025 concluído com sucesso."
 
     except Exception as e:
-        pyperclip.copy("")
         print(f"ERRO no processo PLR 2025: {e}")
         return False, f"Erro no processo PLR 2025: {e}"
-
-# --- Bloco de Teste ---
-if __name__ == "__main__":
-    # ... (bloco de teste padrão) ...
-    pass

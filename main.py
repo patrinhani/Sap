@@ -6,7 +6,9 @@ from datetime import datetime
 from tkinter import filedialog, messagebox
 import ctypes
 
-# --- 1. IMPORTAÇÕES DA LÓGICA (sem alterações) ---
+# --- LÓGICA DA APLICAÇÃO (sem alterações) ---
+# (Toda a parte de imports, PROCESS_MAP, SEQUENCES e funções de controle continua aqui, exatamente como antes)
+# ...
 from automations.sap_utils import connect_to_sap
 from automations.hp_completo import execute as run_hp_completo
 from automations.hq_completo import execute as run_hq_completo
@@ -20,17 +22,14 @@ from automations.hp13_2 import execute as run_hp13_2
 from automations.plr_2022 import execute as run_plr_2022
 from automations.plr_2025 import execute as run_plr_2025
 
-# --- 2. MAPEAMENTO DE PROCESSOS (PROCESS_MAP) (sem alterações) ---
 PROCESS_MAP = {
-    "HP Completo": run_hp_completo, "HQ Completo": run_hq_completo, "13º Salário": run_decimo_terceiro, "PLRs": run_plrs, "CTPS Digital": run_ctps_digital, "Ficha Financeira": run_ficha_financeira, "HP Individual (Off-Cycle)": run_hp_individual, "1ª Parcela 13º": run_hp13_1, "2ª Parcela 13º": run_hp13_2, "PLR 2022": run_plr_2022, "PLR 2025": run_plr_2025,
+    "HP Completo": run_hp_completo,"HQ Completo": run_hq_completo,"13º Salário": run_decimo_terceiro,"PLRs": run_plrs,"CTPS Digital": run_ctps_digital, "Ficha Financeira": run_ficha_financeira,"HP Individual (Off-Cycle)": run_hp_individual,"1ª Parcela 13º": run_hp13_1,"2ª Parcela 13º": run_hp13_2,"PLR 2022": run_plr_2022,"PLR 2025": run_plr_2025,
 }
 
-# --- 3. DICIONÁRIO DE SEQUÊNCIAS (sem alterações) ---
 SEQUENCES = {
-    "HP Completo": ["HP Completo"], "HQ Completo": ["HQ Completo"], "13º Salário": ["13º Salário"], "PLRs": ["PLRs"], "Ficha Financeira": ["Ficha Financeira"], "CTPS Digital": ["CTPS Digital"], "HP Individual (Off-Cycle)": ["HP Individual (Off-Cycle)"], "1ª Parcela 13º": ["1ª Parcela 13º"], "2ª Parcela 13º": ["2ª Parcela 13º"], "PLR 2022": ["PLR 2022"], "PLR 2025": ["PLR 2025"], "HP e HQ Combinados": ["HP Completo", "HQ Completo"], "Massa Completa de Holerites": ["HP Completo", "HQ Completo", "13º Salário", "PLRs"], "EXECUTAR TUDO": ["Massa Completa de Holerites", "Ficha Financeira", "CTPS Digital", "HP Individual (Off-Cycle)"],
+    "HP Completo": ["HP Completo"],"HQ Completo": ["HQ Completo"],"13º Salário": ["13º Salário"],"PLRs": ["PLRs"],"Ficha Financeira": ["Ficha Financeira"],"CTPS Digital": ["CTPS Digital"],"HP Individual (Off-Cycle)": ["HP Individual (Off-Cycle)"],"1ª Parcela 13º": ["1ª Parcela 13º"],"2ª Parcela 13º": ["2ª Parcela 13º"],"PLR 2022": ["PLR 2022"],"PLR 2025": ["PLR 2025"],"HP e HQ Combinados": ["HP Completo", "HQ Completo"],"Massa Completa de Holerites": ["HP Completo", "HQ Completo", "13º Salário", "PLRs"],"EXECUTAR TUDO": ["Massa Completa de Holerites", "Ficha Financeira", "CTPS Digital", "HP Individual (Off-Cycle)"],
 }
 
-# --- Funções de Controle e Lógica da Interface (sem alterações) ---
 CONFIG_FILE = "config.json"
 output_base_path = ""
 
@@ -107,7 +106,7 @@ def execute_sequence(sequence_name):
     messagebox.showinfo("Concluído", f"A sequência '{sequence_name}' foi executada com sucesso!")
     save_last_period()
 
-# --- Interface Gráfica com ttkbootstrap (VERSÃO FINAL COM 3 ABAS) ---
+# --- Interface Gráfica ---
 try:
     ctypes.windll.shcore.SetProcessDpiAwareness(1)
 except Exception:
@@ -115,8 +114,6 @@ except Exception:
 
 app = ttk.Window(themename="vapor")
 app.title("Painel de Automação SAP")
-
-# NOVO: Inicia a janela maximizada
 app.state('zoomed') 
 app.minsize(width=800, height=700)
 
@@ -126,7 +123,6 @@ main_frame.pack(fill=BOTH, expand=YES)
 title_label = ttk.Label(main_frame, text="Painel de Automação SAP", font=("", 22, "bold"), bootstyle="primary")
 title_label.pack(pady=(0, 10))
 
-# --- 1. SELEÇÃO DE PASTA ---
 path_frame = ttk.Labelframe(main_frame, text=" 1. Defina a Pasta de Destino ", padding=10)
 path_frame.pack(pady=10, fill=X)
 path_button = ttk.Button(path_frame, text="Selecionar Pasta...", command=select_output_folder, bootstyle="info")
@@ -135,7 +131,6 @@ path_entry_var = ttk.StringVar(value="Nenhuma pasta selecionada")
 path_entry = ttk.Entry(path_frame, textvariable=path_entry_var, state="readonly")
 path_entry.pack(side=LEFT, fill=X, expand=YES)
 
-# --- LAYOUT PRINCIPAL (Elementos de baixo primeiro) ---
 status_label_var = ttk.StringVar(value="Pronto para iniciar.")
 status_label = ttk.Label(main_frame, textvariable=status_label_var, font=("", 10), bootstyle="secondary")
 status_label.pack(side=BOTTOM, pady=(10, 0), fill=X)
@@ -143,29 +138,25 @@ status_label.pack(side=BOTTOM, pady=(10, 0), fill=X)
 massa_frame = ttk.Frame(main_frame)
 massa_frame.pack(side=BOTTOM, pady=10, fill=X)
 massa_frame.grid_columnconfigure((0, 1), weight=1)
-ttk.Button(massa_frame, text="Massa Completa de Holerites", command=lambda: execute_sequence("Massa Completa de Holerites"), bootstyle="success").grid(row=0, column=0, sticky=EW, padx=(0,5), ipady=5)
+
+# ALTERADO: Usando o estilo 'outline' para um visual mais sutil e legível
+ttk.Button(massa_frame, text="Massa Completa de Holerites", command=lambda: execute_sequence("Massa Completa de Holerites"), bootstyle="success-outline").grid(row=0, column=0, sticky=EW, padx=(0,5), ipady=5)
 ttk.Button(massa_frame, text="EXECUTAR TUDO", command=lambda: execute_sequence("EXECUTAR TUDO"), bootstyle="danger").grid(row=0, column=1, sticky=EW, padx=(5,0), ipady=5)
 
-# --- 3. ABAS DE EXECUÇÃO (Nova estrutura com 3 abas) ---
 tab_view = ttk.Notebook(main_frame)
 tab_view.pack(side=BOTTOM, pady=10, fill=X)
 
-# Criação das 3 abas
 tab_holerites = ttk.Frame(tab_view, padding=10)
 tab_anuais = ttk.Frame(tab_view, padding=10)
 tab_individuais = ttk.Frame(tab_view, padding=10)
-
-# Adiciona as abas ao Notebook com seus títulos
 tab_view.add(tab_holerites, text=" Holerites ")
 tab_view.add(tab_anuais, text=" Pagamentos Anuais ")
 tab_view.add(tab_individuais, text=" Documentos e Individuais ")
 
-# --- Preenchimento da Aba 1: Holerites ---
 ttk.Button(tab_holerites, text="Executar HP Completo", command=lambda: execute_sequence("HP Completo"), bootstyle="primary").pack(pady=5, fill=X)
 ttk.Button(tab_holerites, text="Executar HQ Completo", command=lambda: execute_sequence("HQ Completo"), bootstyle="primary").pack(pady=5, fill=X)
 ttk.Button(tab_holerites, text="Executar HP + HQ Combinados", command=lambda: execute_sequence("HP e HQ Combinados"), bootstyle="info").pack(pady=5, fill=X)
 
-# --- Preenchimento da Aba 2: Pagamentos Anuais ---
 decimo_frame = ttk.Frame(tab_anuais)
 decimo_frame.pack(pady=5, fill=X)
 decimo_frame.grid_columnconfigure((0, 1), weight=1)
@@ -180,12 +171,10 @@ ttk.Button(plr_frame, text="Executar PLRs (Completo)", command=lambda: execute_s
 ttk.Button(plr_frame, text="Apenas PLR 2022", command=lambda: execute_sequence("PLR 2022"), bootstyle="secondary").grid(row=1, column=0, sticky=EW, padx=(0,5))
 ttk.Button(plr_frame, text="Apenas PLR 2025", command=lambda: execute_sequence("PLR 2025"), bootstyle="secondary").grid(row=1, column=1, sticky=EW, padx=(5,0))
 
-# --- Preenchimento da Aba 3: Documentos e Individuais ---
 ttk.Button(tab_individuais, text="Gerar Ficha Financeira", command=lambda: execute_sequence("Ficha Financeira"), bootstyle="primary").pack(pady=10, fill=X)
 ttk.Button(tab_individuais, text="Gerar CTPS Digital", command=lambda: execute_sequence("CTPS Digital"), bootstyle="primary").pack(pady=10, fill=X)
 ttk.Button(tab_individuais, text="Gerar HP Individual (Off-Cycle)", command=lambda: execute_sequence("HP Individual (Off-Cycle)"), bootstyle="primary").pack(pady=10, fill=X)
 
-# --- 2. PARÂMETROS (Área que vai expandir) ---
 params_frame = ttk.Labelframe(main_frame, text=" 2. Defina o Período e as Matrículas ", padding=10)
 params_frame.pack(pady=10, fill=BOTH, expand=YES)
 
@@ -213,6 +202,5 @@ scrollbar = ttk.Scrollbar(text_frame, orient=VERTICAL, command=textbox_matricula
 scrollbar.grid(row=0, column=1, sticky=NS)
 textbox_matriculas.config(yscrollcommand=scrollbar.set)
 
-# Carrega a última configuração de período
 load_last_period()
 app.mainloop()
