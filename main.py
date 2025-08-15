@@ -9,15 +9,13 @@ import threading
 import queue
 import sys
 
-# --- NOVO: Função para encontrar arquivos no modo .exe ---
+# NOVO: Função para encontrar arquivos no modo .exe
 def resource_path(relative_path):
     """ Retorna o caminho absoluto para o recurso, funcionando tanto em dev quanto no PyInstaller """
     try:
-        # PyInstaller cria uma pasta temporária e armazena o caminho em _MEIPASS
         base_path = sys._MEIPASS
     except Exception:
         base_path = os.path.abspath(".")
-
     return os.path.join(base_path, relative_path)
 
 # --- 1. IMPORTAÇÕES DA LÓGICA ---
@@ -36,12 +34,35 @@ from automations.plr_2025 import execute as run_plr_2025
 
 # --- 2. MAPEAMENTO DE PROCESSOS (PROCESS_MAP) ---
 PROCESS_MAP = {
-    "HP Completo": run_hp_completo, "HQ Completo": run_hq_completo, "13º Salário": run_decimo_terceiro, "PLRs": run_plrs, "CTPS Digital": run_ctps_digital, "Ficha Financeira": run_ficha_financeira, "HP Individual (Off-Cycle)": run_hp_individual, "1ª Parcela 13º": run_hp13_1, "2ª Parcela 13º": run_hp13_2, "PLR 2022": run_plr_2022, "PLR 2025": run_plr_2025,
+    "HP Completo": run_hp_completo,
+    "HQ Completo": run_hq_completo, 
+    "13º Salário": run_decimo_terceiro, 
+    "PLRs": run_plrs, 
+    "CTPS Digital": run_ctps_digital, 
+    "Ficha Financeira": run_ficha_financeira, 
+    "HP Individual (Off-Cycle)": run_hp_individual,
+    "1ª Parcela 13º": run_hp13_1, 
+    "2ª Parcela 13º": run_hp13_2, 
+    "PLR 2022": run_plr_2022, 
+    "PLR 2025": run_plr_2025,
 }
 
 # --- 3. DICIONÁRIO DE SEQUÊNCIAS ---
 SEQUENCES = {
-    "HP Completo": ["HP Completo"], "HQ Completo": ["HQ Completo"], "13º Salário": ["13º Salário"], "PLRs": ["PLRs"], "Ficha Financeira": ["Ficha Financeira"], "CTPS Digital": ["CTPS Digital"], "HP Individual (Off-Cycle)": ["HP Individual (Off-Cycle)"], "1ª Parcela 13º": ["1ª Parcela 13º"], "2ª Parcela 13º": ["2ª Parcela 13º"], "PLR 2022": ["PLR 2022"], "PLR 2025": ["PLR 2025"], "HP e HQ Combinados": ["HP Completo", "HQ Completo"], "Massa Completa de Holerites": ["HP Completo", "HQ Completo", "13º Salário", "PLRs"], "EXECUTAR TUDO": ["Massa Completa de Holerites", "Ficha Financeira", "CTPS Digital", "HP Individual (Off-Cycle)"],
+    "HP Completo": ["HP Completo"], 
+    "HQ Completo": ["HQ Completo"],
+    "13º Salário": ["13º Salário"],
+    "PLRs": ["PLRs"], 
+    "Ficha Financeira": ["Ficha Financeira"], 
+    "CTPS Digital": ["CTPS Digital"], 
+    "HP Individual (Off-Cycle)": ["HP Individual (Off-Cycle)"], 
+    "1ª Parcela 13º": ["1ª Parcela 13º"], 
+    "2ª Parcela 13º": ["2ª Parcela 13º"], 
+    "PLR 2022": ["PLR 2022"], 
+    "PLR 2025": ["PLR 2025"], 
+    "HP e HQ Combinados": ["HP Completo", "HQ Completo"], 
+    "Massa Completa de Holerites": ["HP Completo", "HQ Completo", "13º Salário", "PLRs"],
+    "EXECUTAR TUDO": ["Massa Completa de Holerites", "Ficha Financeira", "CTPS Digital", "HP Individual (Off-Cycle)"],
 }
 
 # --- 4. Funções de Controle e Lógica da Interface ---
@@ -51,13 +72,19 @@ output_base_path = ""
 progress_queue = queue.Queue()
 automation_thread = None
 
-def save_last_period():
-    config_data = { "mes_inicio": combo_mes_inicio.get(), "ano_inicio": combo_ano_inicio.get(), "mes_fim": combo_mes_fim.get(), "ano_fim": combo_ano_fim.get() }
+# ALTERADO: Função agora salva o tema junto com o período
+def save_config():
+    config_data = {
+        "mes_inicio": combo_mes_inicio.get(), "ano_inicio": combo_ano_inicio.get(),
+        "mes_fim": combo_mes_fim.get(), "ano_fim": combo_ano_fim.get(),
+        "theme": app.style.theme.name
+    }
     try:
         with open(CONFIG_FILE, "w") as f: json.dump(config_data, f)
     except Exception as e: print(f"Erro ao salvar configuração: {e}")
 
-def load_last_period():
+# ALTERADO: Função agora carrega o tema junto com o período
+def load_config():
     try:
         if os.path.exists(CONFIG_FILE):
             with open(CONFIG_FILE, "r") as f:
@@ -67,6 +94,10 @@ def load_last_period():
                 combo_ano_inicio.set(config_data.get("ano_inicio", str(now.year)))
                 combo_mes_fim.set(config_data.get("mes_fim", f"{now.month:02d}"))
                 combo_ano_fim.set(config_data.get("ano_fim", str(now.year)))
+                
+                saved_theme = config_data.get("theme", "vapor")
+                app.style.theme_use(saved_theme)
+                theme_switch_var.set(saved_theme == 'litera')
     except Exception as e: print(f"Erro ao carregar configuração: {e}")
 
 def select_output_folder():
@@ -75,6 +106,14 @@ def select_output_folder():
     if path:
         output_base_path = path
         path_entry_var.set(output_base_path)
+
+# NOVO: Função para alternar entre os temas
+def toggle_theme():
+    if theme_switch_var.get():
+        app.style.theme_use('litera')
+    else:
+        app.style.theme_use('vapor')
+    save_config()
 
 def automation_worker(sequence_name, matriculas_lista, periodo):
     """Função que executa a automação pesada em segundo plano."""
@@ -173,7 +212,7 @@ def process_queue():
                 geral_status_var.set("Sequência concluída com sucesso!")
                 detalhe_status_var.set("")
                 progress_geral_var.set(100)
-                save_last_period()
+                save_config()
 
             elif msg["type"] == "done":
                 for btn in all_buttons: btn.configure(state="normal")
@@ -196,11 +235,19 @@ main_frame = ttk.Frame(app, padding=20)
 main_frame.pack(fill=BOTH, expand=YES)
 all_buttons = []
 
-title_label = ttk.Label(main_frame, text="Painel de Automação SAP", font=("", 22, "bold"), bootstyle="primary")
-title_label.pack(pady=(0, 10))
+# NOVO: Header para título e seletor de tema
+header_frame = ttk.Frame(main_frame)
+header_frame.pack(fill=X, pady=(0, 10), anchor=N)
+
+title_label = ttk.Label(header_frame, text="Painel de Automação SAP", font=("", 22, "bold"), bootstyle="primary")
+title_label.pack(side=LEFT, expand=YES, anchor=W)
+
+theme_switch_var = ttk.BooleanVar()
+theme_switch = ttk.Checkbutton(header_frame, text="Tema Claro", variable=theme_switch_var, command=toggle_theme, bootstyle="success-round-toggle")
+theme_switch.pack(side=RIGHT, anchor=E, padx=10)
 
 path_frame = ttk.Labelframe(main_frame, text=" 1. Defina a Pasta de Destino ", padding=10)
-path_frame.pack(pady=10, fill=X)
+path_frame.pack(pady=10, fill=X, anchor=N)
 path_button = ttk.Button(path_frame, text="Selecionar Pasta...", command=select_output_folder, bootstyle="info")
 path_button.pack(side=LEFT, padx=(0, 10))
 path_entry_var = ttk.StringVar(value="Nenhuma pasta selecionada")
@@ -219,7 +266,7 @@ ttk.Progressbar(exec_frame, variable=progress_geral_var, bootstyle="info-striped
 massa_frame = ttk.Frame(main_frame)
 massa_frame.pack(side=BOTTOM, pady=10, fill=X)
 massa_frame.grid_columnconfigure((0, 1), weight=1)
-btn_massa = ttk.Button(massa_frame, text="Massa Completa de Holerites", command=lambda: start_automation("Massa Completa de Holerites"), bootstyle="success-outline")
+btn_massa = ttk.Button(massa_frame, text="Massa", command=lambda: start_automation("Massa Completa de Holerites"), bootstyle="success-outline")
 btn_massa.grid(row=0, column=0, sticky=EW, padx=(0,5), ipady=5); all_buttons.append(btn_massa)
 btn_tudo = ttk.Button(massa_frame, text="EXECUTAR TUDO", command=lambda: start_automation("EXECUTAR TUDO"), bootstyle="danger")
 btn_tudo.grid(row=0, column=1, sticky=EW, padx=(5,0), ipady=5); all_buttons.append(btn_tudo)
@@ -241,13 +288,13 @@ periodo_frame.grid(row=0, column=0, pady=(0,10), sticky=EW)
 ttk.Label(periodo_frame, text="Início:").pack(side=LEFT, padx=(0, 5))
 combo_mes_inicio = ttk.Combobox(periodo_frame, state="readonly", width=5, values=[f"{i:02d}" for i in range(1, 13)])
 combo_mes_inicio.pack(side=LEFT, padx=5)
-combo_ano_inicio = ttk.Combobox(periodo_frame, state="readonly", width=7, values=[str(i) for i in range(2023, 2029)])
+combo_ano_inicio = ttk.Combobox(periodo_frame, state="readonly", width=7, values=[str(i) for i in range(2021, 2029)])
 combo_ano_inicio.pack(side=LEFT, padx=5)
 ttk.Separator(periodo_frame, orient=VERTICAL).pack(side=LEFT, padx=15, fill=Y, ipady=5)
 ttk.Label(periodo_frame, text="Fim:").pack(side=LEFT, padx=(0, 5))
 combo_mes_fim = ttk.Combobox(periodo_frame, state="readonly", width=5, values=[f"{i:02d}" for i in range(1, 13)])
 combo_mes_fim.pack(side=LEFT, padx=5)
-combo_ano_fim = ttk.Combobox(periodo_frame, state="readonly", width=7, values=[str(i) for i in range(2023, 2029)])
+combo_ano_fim = ttk.Combobox(periodo_frame, state="readonly", width=7, values=[str(i) for i in range(2021, 2029)])
 combo_ano_fim.pack(side=LEFT, padx=10)
 text_frame = ttk.Frame(params_frame)
 text_frame.grid(row=1, column=0, pady=5, sticky=NSEW)
@@ -273,12 +320,16 @@ scrollbar_list.grid(row=0, column=1, sticky=NS)
 progress_list.config(yscrollcommand=scrollbar_list.set)
 progress_list_items = {}
 
-tab_holerites = ttk.Frame(tab_view, padding=10); tab_anuais = ttk.Frame(tab_view, padding=10); tab_individuais = ttk.Frame(tab_view, padding=10)
-tab_view.add(tab_holerites, text=" Holerites "); tab_view.add(tab_anuais, text=" Pagamentos Anuais "); tab_view.add(tab_individuais, text=" Documentos e Individuais ")
+tab_holerites = ttk.Frame(tab_view, padding=10)
+tab_anuais = ttk.Frame(tab_view, padding=10)
+tab_individuais = ttk.Frame(tab_view, padding=10)
+tab_view.add(tab_holerites, text=" Holerites ")
+tab_view.add(tab_anuais, text=" Pagamentos Anuais ")
+tab_view.add(tab_individuais, text=" Documentos e Individuais ")
 
-btn = ttk.Button(tab_holerites, text="Executar HP Completo", command=lambda: start_automation("HP Completo"), bootstyle="primary"); btn.pack(pady=5, fill=X); all_buttons.append(btn)
-btn = ttk.Button(tab_holerites, text="Executar HQ Completo", command=lambda: start_automation("HQ Completo"), bootstyle="primary"); btn.pack(pady=5, fill=X); all_buttons.append(btn)
-btn = ttk.Button(tab_holerites, text="Executar HP + HQ Combinados", command=lambda: start_automation("HP e HQ Combinados"), bootstyle="info"); btn.pack(pady=5, fill=X); all_buttons.append(btn)
+btn = ttk.Button(tab_holerites, text="Executar HP", command=lambda: start_automation("HP Completo"), bootstyle="primary"); btn.pack(pady=5, fill=X); all_buttons.append(btn)
+btn = ttk.Button(tab_holerites, text="Executar HQ", command=lambda: start_automation("HQ Completo"), bootstyle="primary"); btn.pack(pady=5, fill=X); all_buttons.append(btn)
+btn = ttk.Button(tab_holerites, text="Executar HP + HQ ", command=lambda: start_automation("HP e HQ Combinados"), bootstyle="info"); btn.pack(pady=5, fill=X); all_buttons.append(btn)
 
 decimo_frame = ttk.Frame(tab_anuais); decimo_frame.pack(pady=5, fill=X); decimo_frame.grid_columnconfigure((0, 1), weight=1)
 btn = ttk.Button(decimo_frame, text="Executar 13º Salário (Completo)", command=lambda: start_automation("13º Salário"), bootstyle="primary"); btn.grid(row=0, column=0, columnspan=2, sticky=EW, pady=(0,5)); all_buttons.append(btn)
@@ -292,7 +343,7 @@ btn = ttk.Button(plr_frame, text="Apenas PLR 2025", command=lambda: start_automa
 
 btn = ttk.Button(tab_individuais, text="Gerar Ficha Financeira", command=lambda: start_automation("Ficha Financeira"), bootstyle="primary"); btn.pack(pady=10, fill=X); all_buttons.append(btn)
 btn = ttk.Button(tab_individuais, text="Gerar CTPS Digital", command=lambda: start_automation("CTPS Digital"), bootstyle="primary"); btn.pack(pady=10, fill=X); all_buttons.append(btn)
-btn = ttk.Button(tab_individuais, text="Gerar HP Individual (Off-Cycle)", command=lambda: start_automation("HP Individual (Off-Cycle)"), bootstyle="primary"); btn.pack(pady=10, fill=X); all_buttons.append(btn)
+btn = ttk.Button(tab_individuais, text="Gerar HP Individual", command=lambda: start_automation("HP Individual (Off-Cycle)"), bootstyle="primary"); btn.pack(pady=10, fill=X); all_buttons.append(btn)
 
-load_last_period()
+load_config()
 app.mainloop()

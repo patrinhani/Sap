@@ -6,12 +6,13 @@ from .path_utils import get_save_path
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 try:
-    from automations.sap_utils import connect_to_sap
+    from automations.sap_utils import connect_to_sap, keep_alive
 except ImportError:
     try:
-        from sap_utils import connect_to_sap
+        from sap_utils import connect_to_sap, keep_alive
     except ImportError:
         def connect_to_sap(): return None
+        def keep_alive(session): print("AVISO: Função keep_alive não encontrada.")
 
 def execute(session, matriculas, periodo, config, output_base_path, progress_queue=None):
     """Gera o Holerite Individual (Off-Cycle), reportando o progresso por matrícula."""
@@ -26,11 +27,22 @@ def execute(session, matriculas, periodo, config, output_base_path, progress_que
         if progress_queue:
             progress_queue.put({"type": "task_list", "tasks": [f"HP Indiv. {m}" for m in matriculas_validas]})
 
+        # --- LÓGICA DE KEEP-ALIVE ---
+        KEEP_ALIVE_INTERVAL = 180  # 3 minutos
+        last_ping_time = time.time()
+        # ---------------------------
+
         arquivos_salvos = 0
         erros = 0
         for i, matricula in enumerate(matriculas_validas):
+            # --- VERIFICAÇÃO DE KEEP-ALIVE ---
+            current_time = time.time()
+            if current_time - last_ping_time > KEEP_ALIVE_INTERVAL:
+                keep_alive(session)
+                last_ping_time = current_time
+            # ---------------------------------
+
             task_id = f"HP Indiv. {matricula}"
-            
             if progress_queue:
                 progress_queue.put({"type": "status", "detalhe": f"Processando Matrícula {i+1}/{len(matriculas_validas)}: {matricula}"})
                 progress_queue.put({"type": "task_update", "task_id": task_id, "status": "Executando..."})
@@ -43,7 +55,6 @@ def execute(session, matriculas, periodo, config, output_base_path, progress_que
                 
                 grid = session.findById("wnd[0]/usr/tabsOC_WORKBENCH_U/tabpTAB1U/ssubTABNU:SAPLHRPAY99_OC:1121/cntlGRID_CONTAINER/shellcont/shell")
                 
-                # --- Filtros ---
                 grid.setCurrentCell(-1, "OCRTX"); grid.selectColumn("OCRTX"); grid.contextMenu(); time.sleep(0.5)
                 try: grid.selectContextMenuItem("&FILTRAR")
                 except: grid.selectContextMenuItem("&FILTER")
@@ -97,7 +108,7 @@ def execute(session, matriculas, periodo, config, output_base_path, progress_que
             except Exception as e:
                 print(f"  ERRO: Falha ao processar matrícula {matricula}. Detalhes: {e}")
                 erros += 1
-                try: session.findById("wnd[0]/tbar[0]/btn[3]").press(); time.sleep(1) # Tenta voltar em caso de erro
+                try: session.findById("wnd[0]/tbar[0]/btn[3]").press(); time.sleep(1)
                 except: pass
 
             if progress_queue:

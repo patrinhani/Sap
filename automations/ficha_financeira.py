@@ -6,9 +6,13 @@ from .path_utils import get_save_path
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 try:
-    from automations.sap_utils import connect_to_sap
+    from automations.sap_utils import connect_to_sap, keep_alive
 except ImportError:
-    pass
+    try:
+        from sap_utils import connect_to_sap, keep_alive
+    except ImportError:
+        def connect_to_sap(): return None
+        def keep_alive(session): print("AVISO: Função keep_alive não encontrada.")
 
 def execute(session, matriculas, periodo, config, output_base_path, progress_queue=None):
     """Gera a Ficha Financeira, reportando o progresso por matrícula e ano."""
@@ -30,9 +34,21 @@ def execute(session, matriculas, periodo, config, output_base_path, progress_que
         
         if progress_queue:
             progress_queue.put({"type": "task_list", "tasks": tarefas})
+        
+        # --- LÓGICA DE KEEP-ALIVE ---
+        KEEP_ALIVE_INTERVAL = 180
+        last_ping_time = time.time()
+        # ---------------------------
 
         arquivos_gerados = 0
         for i, task_id in enumerate(tarefas):
+            # --- VERIFICAÇÃO DE KEEP-ALIVE ---
+            current_time = time.time()
+            if current_time - last_ping_time > KEEP_ALIVE_INTERVAL:
+                keep_alive(session)
+                last_ping_time = current_time
+            # ---------------------------------
+
             matricula, ano_str = task_id.replace("FF ", "").split(" - ")
             ano = int(ano_str)
             
@@ -46,22 +62,22 @@ def execute(session, matriculas, periodo, config, output_base_path, progress_que
                 if encontrou_empresa_valida: break
                 
                 session.StartTransaction("ZHCMTR0084"); time.sleep(1)
-                session.findById("wnd[0]/tbar[1]/btn[17]").press(); time.sleep(1)
+                session.findById("wnd[0]/tbar[1]/btn[17]").press(); time.sleep(0.5)
                 session.findById("wnd[1]/usr/cntlALV_CONTAINER_1/shellcont/shell").selectedRows = "0"
-                session.findById("wnd[1]/tbar[0]/btn[2]").press(); time.sleep(1)
+                session.findById("wnd[1]/tbar[0]/btn[2]").press(); time.sleep(0.5)
                 
                 session.findById("wnd[0]/usr/ctxtPNPBEGDA").text = f"01.01.{ano}"
                 session.findById("wnd[0]/usr/ctxtPNPENDDA").text = f"31.12.{ano}"
                 session.findById("wnd[0]/usr/txtP_COMPE").text = str(ano)
                 session.findById("wnd[0]/usr/ctxtPNPBUKRS-LOW").text = empresa
                 session.findById("wnd[0]/usr/ctxtPNPPERNR-LOW").text = matricula
-                session.findById("wnd[0]/tbar[1]/btn[8]").press(); time.sleep(3)
+                session.findById("wnd[0]/tbar[1]/btn[8]").press(); time.sleep(2)
                 
                 try:
                     session.findById("wnd[0]/tbar[1]/btn[46]").press()
-                    session.findById("wnd[0]/tbar[1]/btn[45]").press(); time.sleep(1)
+                    session.findById("wnd[0]/tbar[1]/btn[45]").press(); time.sleep(0.5)
                     session.findById("wnd[1]/usr/subSUBSCREEN_STEPLOOP:SAPLSPO5:0150/sub:SAPLSPO5:0150/radSPOPLI-SELFLAG[3,0]").select()
-                    session.findById("wnd[1]/tbar[0]/btn[0]").press(); time.sleep(1)
+                    session.findById("wnd[1]/tbar[0]/btn[0]").press(); time.sleep(0.5)
                     nome_arquivo = f"{matricula} - ff {str(ano)[-2:]}.html"
                     session.findById("wnd[1]/usr/ctxtDY_PATH").text = caminho_de_saida
                     session.findById("wnd[1]/usr/ctxtDY_FILENAME").text = nome_arquivo

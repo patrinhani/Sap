@@ -6,12 +6,13 @@ from .path_utils import get_save_path
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 try:
-    from automations.sap_utils import connect_to_sap
+    from automations.sap_utils import connect_to_sap, keep_alive
 except ImportError:
     try:
-        from sap_utils import connect_to_sap
+        from sap_utils import connect_to_sap, keep_alive
     except ImportError:
         def connect_to_sap(): return None
+        def keep_alive(session): print("AVISO: Função keep_alive não encontrada.")
 
 def execute(session, matriculas, periodo, config, output_base_path, progress_queue=None):
     """Gera o relatório da CTPS Digital, reportando o progresso por matrícula."""
@@ -26,9 +27,20 @@ def execute(session, matriculas, periodo, config, output_base_path, progress_que
         if progress_queue:
             progress_queue.put({"type": "task_list", "tasks": matriculas_validas})
 
+        # --- LÓGICA DE KEEP-ALIVE ---
+        KEEP_ALIVE_INTERVAL = 180
+        last_ping_time = time.time()
+        # ---------------------------
+
         for i, matricula in enumerate(matriculas_validas):
-            task_id = matricula
+            # --- VERIFICAÇÃO DE KEEP-ALIVE ---
+            current_time = time.time()
+            if current_time - last_ping_time > KEEP_ALIVE_INTERVAL:
+                keep_alive(session)
+                last_ping_time = current_time
+            # ---------------------------------
             
+            task_id = matricula
             if progress_queue:
                 progress_queue.put({"type": "status", "detalhe": f"Processando Matrícula {i+1}/{total_matriculas}: {matricula}"})
                 progress_queue.put({"type": "task_update", "task_id": task_id, "status": "Executando..."})
@@ -38,18 +50,14 @@ def execute(session, matriculas, periodo, config, output_base_path, progress_que
             encontrou_empresa = False
             
             for codigo_empresa in empresas_para_testar:
-                print(f"  Tentando com empresa: {codigo_empresa}...")
-                
                 session.StartTransaction("ZHCMTR0074"); time.sleep(1)
-                session.findById("wnd[0]/tbar[1]/btn[17]").press(); time.sleep(1)
-                
+                session.findById("wnd[0]/tbar[1]/btn[17]").press(); time.sleep(0.5)
                 try:
                     grid = session.findById("wnd[1]/usr/cntlALV_CONTAINER_1/shellcont/shell")
                     grid.currentCellRow = 2; grid.selectedRows = "2"
-                    session.findById("wnd[1]/tbar[0]/btn[2]").press(); time.sleep(1)
+                    session.findById("wnd[1]/tbar[0]/btn[2]").press(); time.sleep(0.5)
                 except Exception:
-                    session.findById("wnd[1]").close(); time.sleep(1)
-                    
+                    session.findById("wnd[1]").close(); time.sleep(0.5)
                 session.findById("wnd[0]/usr/ctxtPNPPERNR-LOW").text = matricula
                 session.findById("wnd[0]/usr/ctxtPNPBUKRS-LOW").text = codigo_empresa
                 session.findById("wnd[0]/usr/ctxtP_CARR").text = caminho_salvar_completo
@@ -65,9 +73,7 @@ def execute(session, matriculas, periodo, config, output_base_path, progress_que
                         processados_com_sucesso += 1
                     except Exception:
                         session.findById("wnd[1]").close()
-                        
-                if encontrou_empresa:
-                    break
+                if encontrou_empresa: break
             
             if encontrou_empresa:
                 if progress_queue: progress_queue.put({"type": "task_update", "task_id": task_id, "status": "✅ Concluído"})

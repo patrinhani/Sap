@@ -1,5 +1,6 @@
 import win32com.client
 import sys
+import time
 
 def connect_to_sap():
     """
@@ -16,7 +17,6 @@ def connect_to_sap():
         if not isinstance(application, win32com.client.CDispatch):
             return None
 
-        # Tenta pegar a primeira conexão e a primeira sessão
         connection = application.Children(0)
         if not isinstance(connection, win32com.client.CDispatch):
             return None
@@ -29,5 +29,17 @@ def connect_to_sap():
         return session
 
     except Exception as e:
-        print(f"ERRO: Não foi possível conectar ao SAP. Verifique se o SAP Logon está aberto. Detalhes: {e}", file=sys.stderr)
+        print(f"ERRO: Não foi possível conectar ao SAP. Detalhes: {e}", file=sys.stderr)
         return None
+
+# NOVO: Função centralizada para manter a conexão ativa
+def keep_alive(session):
+    """Envia um comando inofensivo para o SAP para evitar timeout por inatividade."""
+    try:
+        print("   Enviando sinal 'keep-alive' para manter a conexão SAP ativa...")
+        # Lê o texto da barra de status, uma ação que não altera nada
+        _ = session.findById("wnd[0]/sbar").text 
+        print("   Sinal enviado com sucesso.")
+        time.sleep(1) # Pequena pausa após o ping
+    except Exception as e:
+        print(f"   AVISO: Não foi possível enviar o sinal de keep-alive. A conexão pode ter caído. Erro: {e}")
