@@ -6,12 +6,13 @@ from .path_utils import get_save_path
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 try:
-    from automations.sap_utils import connect_to_sap
+    from automations.sap_utils import connect_to_sap, keep_alive
 except ImportError:
     try:
-        from sap_utils import connect_to_sap
+        from sap_utils import connect_to_sap, keep_alive
     except ImportError:
         def connect_to_sap(): return None
+        def keep_alive(session): print("AVISO: Função keep_alive não encontrada.")
 
 def iterar_meses(data_inicio_str, data_fim_str):
     try:
@@ -25,10 +26,13 @@ def iterar_meses(data_inicio_str, data_fim_str):
         if mes_atual > 12: mes_atual = 1; ano_atual += 1
 
 def inserir_matriculas(session, matriculas):
+    """Insere matrículas replicando a lógica de dupla interação do VBA."""
     try:
         session.findById("wnd[0]/usr/btn%_PNPPERNR_%_APP_%-VALU_PUSH").press(); time.sleep(1)
+        session.findById("wnd[1]/tbar[0]/btn[16]").press(); time.sleep(1)
+        session.findById("wnd[0]/usr/btn%_PNPPERNR_%_APP_%-VALU_PUSH").press(); time.sleep(1)
         for i, matricula in enumerate(matriculas):
-            session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,1]").text = matricula
+            session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,1]").text = matricula.strip()
             session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE").verticalScrollbar.position = i + 1
         session.findById("wnd[1]/tbar[0]/btn[8]").press()
         return True
@@ -39,6 +43,7 @@ def inserir_matriculas(session, matriculas):
         return False
 
 def execute(session, matriculas, periodo, config, output_base_path, progress_queue=None):
+    """Executa a automação HP-COM, reportando o progresso."""
     try:
         print("--- Iniciando processo 'HP-COM' ---")
         session.startTransaction("PC00_M37_CEDT"); time.sleep(1)
@@ -74,6 +79,8 @@ def execute(session, matriculas, periodo, config, output_base_path, progress_que
             session.findById("wnd[0]/usr/ctxtP_DIR").text = caminho_de_saida
             session.findById("wnd[0]/usr/chkP_BRANCH").selected = True
             session.findById("wnd[0]/usr/chkP_PDF").selected = True
+            
+            keep_alive(session)
             session.findById("wnd[0]/tbar[1]/btn[8]").press()
             while session.Busy: time.sleep(1)
             session.findById("wnd[0]/tbar[0]/btn[3]").press(); time.sleep(1)
