@@ -1,6 +1,6 @@
 import os
 import sys
-from datetime import datetime
+from datetime import datetime  # <-- ALTERAÇÃO 1: Adicionado o import
 import time
 from .path_utils import get_save_path
 
@@ -24,7 +24,8 @@ def execute(session, matriculas, periodo, config, output_base_path, progress_que
         
         caminho_de_saida = get_save_path(output_base_path, "HP_Individual")
         data_filtro_inicio = "01.07.2021"
-        data_filtro_fim = "28.05.2025"
+        # <-- ALTERAÇÃO 2: A data final agora é a data atual
+        data_filtro_fim = datetime.now().strftime("%d.%m.%Y")
         
         matriculas_validas = [m.strip() for m in matriculas if m.strip()]
         if progress_queue:
@@ -78,20 +79,24 @@ def execute(session, matriculas, periodo, config, output_base_path, progress_que
                         motivo = grid.GetCellValue(j, "OCRTX").strip()
                         data_pagamento = grid.GetCellValue(j, "PAYDT").strip()
                         if not motivo or not data_pagamento: continue
+                        
                         grid.selectedRows = str(j)
                         motivo_lower = motivo.lower()
                         if "férias" in motivo_lower: motivo_codigo = "hpf"
                         elif "rescisão" in motivo_lower: motivo_codigo = "hpr"
                         elif "ajuste" in motivo_lower: motivo_codigo = "hp ajuste"
                         else: motivo_codigo = motivo.replace("/", "-")
+                        
                         try: ano_str = data_pagamento.split('.')[-1][-2:]
                         except: ano_str = "XX"
+                            
                         base_nome_arquivo = f"{matricula} - {motivo_codigo} {ano_str}"
                         nome_arquivo_final = f"{base_nome_arquivo}.html"
                         contador = 1
                         while os.path.exists(os.path.join(caminho_de_saida, nome_arquivo_final)):
                             nome_arquivo_final = f"{base_nome_arquivo} -{contador}.html"
                             contador += 1
+                            
                         session.findById("wnd[0]/usr/tabsOC_WORKBENCH_U/tabpTAB1U/ssubTABNU:SAPLHRPAY99_OC:1121/btnBUTTON_FORM").press(); time.sleep(1)
                         session.findById("wnd[0]/mbar/menu[0]/menu[1]").Select(); time.sleep(1)
                         session.findById("wnd[1]/usr/subSUBSCREEN_STEPLOOP:SAPLSPO5:0150/sub:SAPLSPO5:0150/radSPOPLI-SELFLAG[3,0]").select()
