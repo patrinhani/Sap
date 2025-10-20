@@ -12,17 +12,17 @@ import queue
 import sys
 import time
 
-# --- Funções de backend, imports, dicionários e constantes (Mantidas) ---
+# --- Funções de backend, imports, dicionários e constantes ---
 
-# Função para encontrar o caminho correto do recurso (para executáveis PyInstaller)
 def resource_path(relative_path):
+    """ Retorna o caminho absoluto para o recurso, funciona para dev e para PyInstaller """
     try:
         base_path = sys._MEIPASS
     except Exception:
         base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
 
-# --- Imports dos módulos de automação (Mockups mantidos para execução) ---
+# --- Mocks para automação (se os módulos reais não forem encontrados) ---
 try:
     from automations.sap_utils import connect_to_sap
     from automations.hp_completo import execute as run_hp_completo
@@ -50,13 +50,14 @@ except ImportError as e:
     run_ctps_digital = run_ficha_financeira = run_hp_individual = mock_execute
     run_hp13_1 = run_hp13_2 = run_plr_2022 = run_plr_2025 = mock_execute
 
-
+# --- Mapeamento de Tarefas e Sequências ---
 PROCESS_MAP = {
     "HP Completo": run_hp_completo, "HQ Completo": run_hq_completo, "13º Salário": run_decimo_terceiro,
     "PLRs": run_plrs, "CTPS Digital": run_ctps_digital, "Ficha Financeira": run_ficha_financeira,
     "HP Individual (Off-Cycle)": run_hp_individual, "1ª Parcela 13º": run_hp13_1,
     "2ª Parcela 13º": run_hp13_2, "PLR 2022": run_plr_2022, "PLR 2025": run_plr_2025,
 }
+
 SEQUENCES = {
     "HP": ["HP Completo"], "HQ": ["HQ Completo"], "HP+HQ": ["HP Completo", "HQ Completo"],
     "13º Salário Completo": ["13º Salário"], "PLRs": ["PLRs"], 
@@ -66,9 +67,8 @@ SEQUENCES = {
     "Massa Completa de Holerites": ["HP Completo", "HQ Completo", "13º Salário", "PLRs"],
     "EXECUTAR TUDO": ["Massa Completa de Holerites", "Ficha Financeira", "CTPS Digital", "HP Individual (Off-Cycle)"],
 }
-CONFIG_FILE = resource_path("config.json")
 
-# A TELA DE CONFIGURAÇÕES FOI REMOVIDA DA NAVEGAÇÃO
+CONFIG_FILE = resource_path("config.json")
 SIDEBAR_BUTTONS = ["AÇÕES", "STATUS"]
 
 class AppSAP:
@@ -79,8 +79,10 @@ class AppSAP:
         self.app.minsize(width=900, height=700)
         self.app.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.app.attributes("-alpha", 0) 
-        try: ctypes.windll.shcore.SetProcessDpiAwareness(1)
-        except: pass
+        try:
+            ctypes.windll.shcore.SetProcessDpiAwareness(1)
+        except Exception:
+            pass
 
         # Variáveis de Estado
         self.output_base_path = ""
@@ -135,10 +137,8 @@ class AppSAP:
         self.content_frame.grid_rowconfigure(1, weight=1)
         
         self.frames = {}
-        
         self.frames["AÇÕES"] = self._create_actions_page(self.content_frame)
         self.frames["STATUS"] = self._create_status_page(self.content_frame)
-        # FRAME DE CONFIGURAÇÕES AINDA EXISTE, MAS NÃO ESTÁ NA BARRA LATERAL
         self.frames["CONFIGURAÇÕES"] = self._create_config_page(self.content_frame)
         
         self._create_status_bar(container)
@@ -149,8 +149,8 @@ class AppSAP:
         
         ttk.Label(status_bar, textvariable=self.geral_status_var, bootstyle="info", font=("", 10, "bold")).pack(side=LEFT, padx=(5, 10))
         ttk.Label(status_bar, textvariable=self.detalhe_status_var, bootstyle="secondary").pack(side=LEFT, padx=10)
-        
         ttk.Label(status_bar, textvariable=self.debug_label_var, bootstyle="secondary", font=("", 8)).pack(side=RIGHT, padx=5)
+        
         self.app.bind("<Configure>", self.on_resize)
         self.app.after(100, self.on_resize, None) 
 
@@ -159,9 +159,7 @@ class AppSAP:
         if frame:
             for f in self.frames.values():
                 f.grid_remove()
-            
             frame.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
-            
             for name, btn in self.sidebar_buttons.items():
                 if name == page_name:
                     btn.configure(bootstyle="primary")
@@ -175,14 +173,10 @@ class AppSAP:
 
         title_label = ttk.Label(sidebar, text="SAP", font=("", 18, "bold"), bootstyle="primary")
         title_label.grid(row=0, column=0, sticky="ew", pady=(10, 30))
-        title_label.bind("<Button-1>", self.vapor_easter_egg_check) # EASTER EGG 1 AQUI
+        title_label.bind("<Button-1>", self.vapor_easter_egg_check)
 
         for i, name in enumerate(SIDEBAR_BUTTONS):
-            btn = ttk.Button(sidebar, text=name, 
-                             command=lambda n=name: self.show_frame(n), 
-                             bootstyle="secondary-outline",
-                             padding=15,
-                             cursor="hand2")
+            btn = ttk.Button(sidebar, text=name, command=lambda n=name: self.show_frame(n), bootstyle="secondary-outline", padding=15, cursor="hand2")
             btn.grid(row=i + 1, column=0, sticky="ew", pady=5)
             self.sidebar_buttons[name] = btn
 
@@ -190,8 +184,6 @@ class AppSAP:
         
         theme_switch = ttk.Checkbutton(sidebar, text="Tema Claro/Escuro", variable=self.theme_switch_var, command=self.toggle_theme, bootstyle="success-round-toggle")
         theme_switch.grid(row=len(SIDEBAR_BUTTONS) + 2, column=0, sticky="ew", pady=(20, 10))
-
-    # --- PÁGINAS ---
 
     def _create_actions_page(self, parent):
         page_frame = ttk.Frame(parent, padding=10)
@@ -258,24 +250,19 @@ class AppSAP:
         holerites_tab = ScrolledFrame(notebook, padding=10, autohide=True).container
         notebook.add(holerites_tab, text="Holerites", sticky="nsew")
         holerites_tab.columnconfigure(0, weight=1)
-        
         btn = ttk.Button(holerites_tab, text="Executar HP (Completo)", command=lambda: self.start_automation("HP"), bootstyle="primary"); btn.grid(row=0, column=0, sticky="ew", pady=5); self.all_buttons.append(btn)
         btn = ttk.Button(holerites_tab, text="Executar HQ (Completo)", command=lambda: self.start_automation("HQ"), bootstyle="primary"); btn.grid(row=1, column=0, sticky="ew", pady=5); self.all_buttons.append(btn)
         btn = ttk.Button(holerites_tab, text="Executar HP + HQ", command=lambda: self.start_automation("HP+HQ"), bootstyle="info"); btn.grid(row=2, column=0, sticky="ew", pady=10); self.all_buttons.append(btn)
         
     def _create_anuais_tab(self, notebook):
-        anuais_scrolled_tab = ScrolledFrame(notebook, padding=10, autohide=True)
-        notebook.add(anuais_scrolled_tab.container, text="Anuais", sticky="nsew") 
-        anuais_tab = anuais_scrolled_tab.container 
+        anuais_tab = ScrolledFrame(notebook, padding=10, autohide=True).container
+        notebook.add(anuais_tab, text="Anuais", sticky="nsew") 
         anuais_tab.columnconfigure(0, weight=1)
-        
         ttk.Label(anuais_tab, text="Décimo Terceiro:").grid(row=0, column=0, sticky="w", pady=(5, 0))
         btn = ttk.Button(anuais_tab, text="13º Salário (Completo)", command=lambda: self.start_automation("13º Salário Completo"), bootstyle="success"); btn.grid(row=1, column=0, sticky="ew", pady=5); self.all_buttons.append(btn)
         btn = ttk.Button(anuais_tab, text="1ª Parcela 13º", command=lambda: self.start_automation("1ª Parcela 13º"), bootstyle="primary-outline"); btn.grid(row=2, column=0, sticky="ew", pady=2); self.all_buttons.append(btn)
         btn = ttk.Button(anuais_tab, text="2ª Parcela 13º", command=lambda: self.start_automation("2ª Parcela 13º"), bootstyle="primary-outline"); btn.grid(row=3, column=0, sticky="ew", pady=5); self.all_buttons.append(btn)
-
         ttk.Separator(anuais_tab).grid(row=4, column=0, sticky="ew", pady=10)
-        
         ttk.Label(anuais_tab, text="PLRs:").grid(row=5, column=0, sticky="w", pady=(5, 0))
         btn = ttk.Button(anuais_tab, text="PLRs (Completo)", command=lambda: self.start_automation("PLRs"), bootstyle="success"); btn.grid(row=6, column=0, sticky="ew", pady=5); self.all_buttons.append(btn)
         btn = ttk.Button(anuais_tab, text="PLR 2022 (Avulso)", command=lambda: self.start_automation("PLR 2022"), bootstyle="primary-outline"); btn.grid(row=7, column=0, sticky="ew", pady=2); self.all_buttons.append(btn)
@@ -285,7 +272,6 @@ class AppSAP:
         docs_tab = ScrolledFrame(notebook, padding=10, autohide=True).container
         notebook.add(docs_tab, text="Documentos", sticky="nsew")
         docs_tab.columnconfigure(0, weight=1)
-        
         btn = ttk.Button(docs_tab, text="Gerar Ficha Financeira", command=lambda: self.start_automation("Ficha Financeira"), bootstyle="primary"); btn.grid(row=0, column=0, sticky="ew", pady=5); self.all_buttons.append(btn)
         btn = ttk.Button(docs_tab, text="Gerar CTPS Digital", command=lambda: self.start_automation("CTPS Digital"), bootstyle="primary"); btn.grid(row=1, column=0, sticky="ew", pady=5); self.all_buttons.append(btn)
         btn = ttk.Button(docs_tab, text="Gerar HP Individual (Off-Cycle)", command=lambda: self.start_automation("HP Individual"), bootstyle="info"); btn.grid(row=2, column=0, sticky="ew", pady=5); self.all_buttons.append(btn)
@@ -294,18 +280,14 @@ class AppSAP:
         page_frame = ttk.Frame(parent, padding=10)
         page_frame.grid_columnconfigure(0, weight=1)
         page_frame.grid_rowconfigure(2, weight=1)
-
         ttk.Label(page_frame, text="Status e Progresso da Automação", font=("", 18, "bold"), bootstyle="primary").grid(row=0, column=0, sticky="w", pady=(0, 20))
-        page_frame.bind("<Button-1>", self.solar_easter_egg_check) # EASTER EGG 2 AQUI
+        page_frame.bind("<Button-1>", self.solar_easter_egg_check)
         
         exec_frame = ttk.Labelframe(page_frame, text=" 📊 Progresso Geral ", padding=20)
         exec_frame.grid(row=1, column=0, sticky="new", pady=(0, 20))
         exec_frame.grid_columnconfigure(1, weight=1)
 
-        self.progress_meter = Meter(
-            exec_frame, metersize=180, padding=10, amountused=0, metertype="semi",
-            subtext="Progresso Geral", interactive=False, bootstyle="info", textright="%"
-        )
+        self.progress_meter = Meter(exec_frame, metersize=180, padding=10, amountused=0, metertype="semi", subtext="Progresso Geral", interactive=False, bootstyle="info", textright="%")
         self.progress_meter.grid(row=0, column=0, rowspan=2, padx=(0, 20), sticky="ns")
         
         ttk.Label(exec_frame, textvariable=self.geral_status_var, font=("", 14, "bold")).grid(row=0, column=1, sticky="nsw")
@@ -318,33 +300,29 @@ class AppSAP:
         
         columns = ('tarefa', 'status')
         self.progress_list = ttk.Treeview(progress_frame, columns=columns, show='headings', bootstyle="primary")
-        self.progress_list.heading('tarefa', text='Documento'); self.progress_list.heading('status', text='Status')
-        self.progress_list.column('tarefa', width=350, anchor=W); self.progress_list.column('status', width=120, anchor=CENTER)
+        self.progress_list.heading('tarefa', text='Documento')
+        self.progress_list.heading('status', text='Status')
+        self.progress_list.column('tarefa', width=350, anchor=W)
+        self.progress_list.column('status', width=120, anchor=CENTER)
         self.progress_list.grid(row=0, column=0, sticky="nsew")
         
         scrollbar_list = ttk.Scrollbar(progress_frame, orient=VERTICAL, command=self.progress_list.yview)
         scrollbar_list.grid(row=0, column=1, sticky="ns")
         self.progress_list.config(yscrollcommand=scrollbar_list.set)
-
         return page_frame
 
     def _create_config_page(self, parent):
         page_frame = ttk.Frame(parent, padding=10)
         page_frame.grid_columnconfigure(0, weight=1)
-
         ttk.Label(page_frame, text="Configurações Avançadas (Oculta)", font=("", 18, "bold"), bootstyle="primary").grid(row=0, column=0, sticky="w", pady=(0, 20))
-        
         config_box = ttk.Labelframe(page_frame, text=" ⚙️ Opções Globais ", padding=20)
         config_box.grid(row=1, column=0, sticky="ew")
-        
         ttk.Label(config_box, text="Esta área está reservada para futuras configurações, como:").pack(anchor=W, pady=5)
         ttk.Label(config_box, text="- Seleção de Mandantes/Sistemas SAP", bootstyle="secondary").pack(anchor=W, padx=10)
         ttk.Label(config_box, text="- Opções de Logging e Debugging", bootstyle="secondary").pack(anchor=W, padx=10)
         ttk.Label(config_box, text="- Configuração de Impressão/PDFs", bootstyle="secondary").pack(anchor=W, padx=10)
-        
         return page_frame
     
-    # --- Métodos de Lógica (Mantidos) ---
     def load_config(self):
         try:
             if os.path.exists(CONFIG_FILE):
@@ -355,28 +333,29 @@ class AppSAP:
                     self.combo_ano_inicio.set(config_data.get("ano_inicio", str(now.year)))
                     self.combo_mes_fim.set(config_data.get("mes_fim", f"{now.month:02d}"))
                     self.combo_ano_fim.set(config_data.get("ano_fim", str(now.year)))
-                    
                     saved_theme = config_data.get("theme", "darkly")
-                    if saved_theme not in ['darkly', 'litera', 'vapor', 'solar']: saved_theme = 'darkly'
-                    
+                    if saved_theme not in ['darkly', 'litera', 'vapor', 'solar']:
+                        saved_theme = 'darkly'
                     self.app.style.theme_use(saved_theme)
-                    self.theme_switch_var.set(saved_theme == 'litera' or saved_theme == 'solar')
-        except Exception as e: print(f"Erro ao carregar configuração: {e}")
+                    self.theme_switch_var.set(saved_theme in ['litera', 'solar'])
+        except Exception as e:
+            print(f"Erro ao carregar configuração: {e}")
 
     def save_config(self):
         current_theme = self.app.style.theme.name
         theme_to_save = current_theme
         if current_theme in ['vapor', 'solar']: 
             theme_to_save = 'darkly' if not self.theme_switch_var.get() else 'litera'
-        
         config_data = {
             "mes_inicio": self.combo_mes_inicio.get(), "ano_inicio": self.combo_ano_inicio.get(),
             "mes_fim": self.combo_mes_fim.get(), "ano_fim": self.combo_ano_fim.get(),
             "theme": theme_to_save
         }
         try:
-            with open(CONFIG_FILE, "w") as f: json.dump(config_data, f)
-        except Exception as e: print(f"Erro ao salvar configuração: {e}")
+            with open(CONFIG_FILE, "w") as f:
+                json.dump(config_data, f)
+        except Exception as e:
+            print(f"Erro ao salvar configuração: {e}")
 
     def select_output_folder(self):
         path = filedialog.askdirectory(title="Selecione a Pasta Principal de Saída")
@@ -385,9 +364,10 @@ class AppSAP:
             self.path_entry_var.set(self.output_base_path)
 
     def toggle_theme(self):
-        if self.app.style.theme.name in ['vapor', 'solar']: return
-        if self.theme_switch_var.get(): self.app.style.theme_use('litera')
-        else: self.app.style.theme_use('darkly')
+        if self.app.style.theme.name in ['vapor', 'solar']:
+            return
+        new_theme = 'litera' if self.theme_switch_var.get() else 'darkly'
+        self.app.style.theme_use(new_theme)
 
     def activate_theme(self, theme_name, message, is_light):
         self.app.style.theme_use(theme_name)
@@ -396,17 +376,23 @@ class AppSAP:
 
     def vapor_easter_egg_check(self, event):
         current_time = time.time()
-        if current_time - self.last_click_time > 1: self.vapor_clicks = 0
-        self.last_click_time = current_time; self.vapor_clicks += 1
+        if current_time - self.last_click_time > 1:
+            self.vapor_clicks = 0
+        self.last_click_time = current_time
+        self.vapor_clicks += 1
         if self.vapor_clicks >= 7:
-            self.activate_theme('vapor', "Tema Vaporwave Ativado!", is_light=False); self.vapor_clicks = 0
+            self.activate_theme('vapor', "Tema Vaporwave Ativado!", is_light=False)
+            self.vapor_clicks = 0
             
     def solar_easter_egg_check(self, event):
         current_time = time.time()
-        if current_time - self.last_click_time > 1: self.solar_clicks = 0
-        self.last_click_time = current_time; self.solar_clicks += 1
+        if current_time - self.last_click_time > 1:
+            self.solar_clicks = 0
+        self.last_click_time = current_time
+        self.solar_clicks += 1
         if self.solar_clicks >= 7:
-            self.activate_theme('solar', "Tema Solar Ativado!", is_light=True); self.solar_clicks = 0
+            self.activate_theme('solar', "Tema Solar Ativado!", is_light=True)
+            self.solar_clicks = 0
 
     def on_closing(self):
         if self.automation_thread and self.automation_thread.is_alive():
@@ -420,7 +406,7 @@ class AppSAP:
     def on_text_focus_in(self, event):
         if self.textbox_matriculas.get("1.0", "end-1c").strip() == "Digite ou cole as matrículas aqui,\numa por linha...":
             self.textbox_matriculas.delete("1.0", END)
-            default_fg = self.app.style.lookup('TEntry', 'foreground') or 'black'
+            default_fg = self.app.style.lookup('TEntry', 'foreground')
             self.textbox_matriculas.config(foreground=default_fg) 
 
     def on_text_focus_out(self, event):
@@ -437,26 +423,29 @@ class AppSAP:
 
     def start_automation(self, sequence_name):
         if self.automation_thread and self.automation_thread.is_alive():
-            messagebox.showwarning("Aviso", "Uma automação já está em andamento."); return
+            messagebox.showwarning("Aviso", "Uma automação já está em andamento.")
+            return
         if not self.output_base_path:
-            messagebox.showerror("Erro", "Por favor, selecione uma pasta de destino primeiro!"); return
+            messagebox.showerror("Erro", "Por favor, selecione uma pasta de destino primeiro!")
+            return
         
         input_text = self.textbox_matriculas.get("1.0", "end-1c").strip()
-        if input_text == "Digite ou cole as matrículas aqui,\numa por linha..." or not input_text:
-            messagebox.showerror("Erro", "Nenhuma matrícula inserida."); return
+        if input_text in ["Digite ou cole as matrículas aqui,\numa por linha...", ""]:
+            messagebox.showerror("Erro", "Nenhuma matrícula inserida.")
+            return
                 
         matriculas_lista = [linha.strip() for linha in input_text.split("\n") if linha.strip()]
-                
         periodo = {"inicio": f"{self.combo_mes_inicio.get()}/{self.combo_ano_inicio.get()}", "fim": f"{self.combo_mes_fim.get()}/{self.combo_ano_fim.get()}"}
-        config = {}
         
-        for btn in self.all_buttons: btn.configure(state="disabled")
+        for btn in self.all_buttons:
+            btn.configure(state="disabled")
         self.show_frame("STATUS")
-        for item in self.progress_list.get_children(): self.progress_list.delete(item)
+        for item in self.progress_list.get_children():
+            self.progress_list.delete(item)
         self.progress_list_items.clear()
         
         self.app.config(cursor="watch")
-        self.automation_thread = threading.Thread(target=self.automation_worker, args=(sequence_name, matriculas_lista, periodo, config), daemon=True)
+        self.automation_thread = threading.Thread(target=self.automation_worker, args=(sequence_name, matriculas_lista, periodo, {}), daemon=True)
         self.automation_thread.start()
         self.app.after(100, self.process_queue)
 
@@ -465,16 +454,19 @@ class AppSAP:
             self.progress_queue.put({"type": "status", "geral": "Conectando ao SAP...", "detalhe": ""})
             session = connect_to_sap()
             if session is None and run_hp_completo is not mock_execute:
-                 raise ConnectionError("Falha na conexão com o SAP. Verifique se o SAP GUI está aberto e logado.")
+                raise ConnectionError("Falha na conexão com o SAP. Verifique se o SAP GUI está aberto e logado.")
             
-            tarefas_iniciais = SEQUENCES.get(sequence_name, [])
+            tarefas_para_processar = list(SEQUENCES.get(sequence_name, []))
             tarefas_finais_para_executar = []
-            for tarefa in tarefas_iniciais:
-                if tarefa in SEQUENCES: 
-                    tarefas_finais_para_executar.extend(SEQUENCES.get(tarefa, []))
-                else: 
+
+            while tarefas_para_processar:
+                tarefa = tarefas_para_processar.pop(0)
+                if tarefa in SEQUENCES and tarefa not in PROCESS_MAP:
+                    sub_tarefas = SEQUENCES.get(tarefa, [])
+                    tarefas_para_processar[0:0] = sub_tarefas
+                else:
                     tarefas_finais_para_executar.append(tarefa)
-                
+            
             tarefas_finais_para_executar = list(dict.fromkeys(tarefas_finais_para_executar)) 
             total_procs = len(tarefas_finais_para_executar)
             
@@ -484,13 +476,9 @@ class AppSAP:
                 
                 if processo_nome in PROCESS_MAP:
                     funcao_a_executar = PROCESS_MAP[processo_nome]
-                    
-                    if funcao_a_executar is mock_execute:
-                        sucesso, mensagem = funcao_a_executar(None, matriculas_lista, periodo, config, self.output_base_path, progress_queue=self.progress_queue)
-                    else:
-                        sucesso, mensagem = funcao_a_executar(session, matriculas_lista, periodo, config, self.output_base_path, progress_queue=self.progress_queue)
-
-                    if not sucesso: raise RuntimeError(f"Erro em '{processo_nome}': {mensagem}")
+                    sucesso, mensagem = funcao_a_executar(session, matriculas_lista, periodo, config, self.output_base_path, progress_queue=self.progress_queue)
+                    if not sucesso:
+                        raise RuntimeError(f"Erro em '{processo_nome}': {mensagem}")
                 else: 
                     print(f"AVISO: Processo '{processo_nome}' não encontrado no PROCESS_MAP.")
                     
@@ -516,12 +504,10 @@ class AppSAP:
         try:
             while True:
                 msg = self.progress_queue.get_nowait()
-                
                 if msg["type"] == "status":
                     if "geral" in msg: self.geral_status_var.set(msg["geral"])
                     if "detalhe" in msg: self.detalhe_status_var.set(msg["detalhe"])
                     if "progresso_geral" in msg: self.animate_progress(msg["progresso_geral"])
-                    
                 elif msg["type"] == "task_update":
                     task_id = msg.get("task_id")
                     if task_id not in self.progress_list_items:
@@ -532,25 +518,23 @@ class AppSAP:
                         if "Executando" in msg["status"]:
                             self.progress_list.selection_set(self.progress_list_items[task_id])
                             self.progress_list.see(self.progress_list_items[task_id])
-                            
                 elif msg["type"] == "error":
                     self.app.config(cursor="")
                     messagebox.showerror("Erro na Execução", msg["msg"])
-                    self.geral_status_var.set("Erro!"); self.detalhe_status_var.set(msg["msg"][:100] + "...")
+                    self.geral_status_var.set("Erro!")
+                    self.detalhe_status_var.set(msg["msg"][:100] + "...")
                     self.animate_progress(0)
-                    
                 elif msg["type"] == "success":
                     messagebox.showinfo("Concluído", msg["msg"])
                     self.geral_status_var.set("Sequência concluída com sucesso!")
-                    self.detalhe_status_var.set(""); 
+                    self.detalhe_status_var.set("")
                     self.animate_progress(100)
                     self.save_config()
-                    
                 elif msg["type"] == "done":
                     self.app.config(cursor="")
-                    for btn in self.all_buttons: btn.configure(state="normal")
+                    for btn in self.all_buttons:
+                        btn.configure(state="normal")
                     return
-                    
         except queue.Empty:
             self.app.after(100, self.process_queue)
             
@@ -558,7 +542,6 @@ class AppSAP:
         width = self.app.winfo_width()
         height = self.app.winfo_height()
         self.debug_label_var.set(f"W: {width}px | H: {height}px")
-
 
 if __name__ == "__main__":
     app_window = ttk.Window(themename="darkly")
