@@ -25,7 +25,7 @@ def inserir_matriculas(session, matriculas):
     except Exception as e:
         print(f"Erro ao inserir matrículas: {e}")
         try: session.findById("wnd[1]/tbar[0]/btn[12]").press()
-        except: pass
+        except: pass 
         return False
 
 def execute(session, matriculas, periodo, config, output_base_path, progress_queue=None):

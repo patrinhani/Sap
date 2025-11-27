@@ -58,7 +58,7 @@ except ImportError as e:
     if 'run_hq_completo' not in locals(): run_hq_completo = mock_execute
     if 'run_decimo_terceiro' not in locals(): run_decimo_terceiro = mock_execute
     if 'run_plrs' not in locals(): run_plrs = mock_execute
-    if 'run_ctps_digital' not in locals(): run_ctps_digital = mock_execute
+    if 'run_ctps_digital' not in locals(): run_ctps_digital = mock_execute 
     if 'run_ficha_financeira' not in locals(): run_ficha_financeira = mock_execute
     if 'run_hp_individual' not in locals(): run_hp_individual = mock_execute
     if 'run_hp13_1' not in locals(): run_hp13_1 = mock_execute
