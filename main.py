@@ -25,19 +25,18 @@ def resource_path(relative_path):
 # --- Mocks para automação (se os módulos reais não forem encontrados) ---
 try:
     from automations.sap_utils import connect_to_sap
-    from automations.hp_completo import execute as run_hp_completo # <--- MANTIDO ORIGINAL
+    # Módulos Originais
+    from automations.hp_completo import execute as run_hp_completo
     from automations.hq_completo import execute as run_hq_completo
     from automations.decimo_terceiro import execute as run_decimo_terceiro
-    from automations.plrs import execute as run_plrs
+    from automations.plrs import execute as run_plrs # PLR de Folha Normal
     from automations.ctps_digital import execute as run_ctps_digital
     from automations.ficha_financeira import execute as run_ficha_financeira
-    from automations.hp_individual import execute as run_hp_individual
+    from automations.hp_individual import execute as run_hp_individual # Agora UNIFICADO
     from automations.hp13_1 import execute as run_hp13_1
     from automations.hp13_2 import execute as run_hp13_2
-    from automations.plr_2022 import execute as run_plr_2022
-    from automations.plr_2025 import execute as run_plr_2025
     
-    # --- 1. NOVAS IMPORTAÇÕES ADICIONADAS ---
+    # Módulos Novos
     from automations.hp_com import execute as run_hp_com 
     from automations.zdp1 import execute as run_zdp1
     from automations.zdp2 import execute as run_zdp2 
@@ -53,7 +52,7 @@ except ImportError as e:
                 q.put({"type": "status", "detalhe": f"Simulando tarefa {i+1}/5..."})
         return True, "Simulação concluída."
 
-    # Mocks para funções originais (se falharem)
+    # Mocks para funções
     if 'run_hp_completo' not in locals(): run_hp_completo = mock_execute
     if 'run_hq_completo' not in locals(): run_hq_completo = mock_execute
     if 'run_decimo_terceiro' not in locals(): run_decimo_terceiro = mock_execute
@@ -63,10 +62,6 @@ except ImportError as e:
     if 'run_hp_individual' not in locals(): run_hp_individual = mock_execute
     if 'run_hp13_1' not in locals(): run_hp13_1 = mock_execute
     if 'run_hp13_2' not in locals(): run_hp13_2 = mock_execute
-    if 'run_plr_2022' not in locals(): run_plr_2022 = mock_execute
-    if 'run_plr_2025' not in locals(): run_plr_2025 = mock_execute
-
-    # Mocks para NOVAS funções (se falharem)
     if 'run_hp_com' not in locals(): run_hp_com = mock_execute
     if 'run_zdp1' not in locals(): run_zdp1 = mock_execute
     if 'run_zdp2' not in locals(): run_zdp2 = mock_execute
@@ -74,35 +69,46 @@ except ImportError as e:
 
 # --- Mapeamento de Tarefas e Sequências ---
 PROCESS_MAP = {
-    "HP Completo": run_hp_completo, # <--- MANTIDO ORIGINAL
+    "HP Completo": run_hp_completo,
     "HQ Completo": run_hq_completo, 
     "13º Salário": run_decimo_terceiro,
-    "PLRs": run_plrs, "CTPS Digital": run_ctps_digital, "Ficha Financeira": run_ficha_financeira,
-    "HP Individual (Off-Cycle)": run_hp_individual, "1ª Parcela 13º": run_hp13_1,
-    "2ª Parcela 13º": run_hp13_2, "PLR 2022": run_plr_2022, "PLR 2025": run_plr_2025,
+    "PLRs": run_plrs, # PLR Folha Normal
+    "CTPS Digital": run_ctps_digital, 
+    "Ficha Financeira": run_ficha_financeira,
+    "HP Individual (Off-Cycle)": run_hp_individual, # Unificado (Férias/Rescisão/PPR)
+    "1ª Parcela 13º": run_hp13_1,
+    "2ª Parcela 13º": run_hp13_2,
     
-    # --- 2. NOVOS PROCESSOS ADICIONADOS ---
+    # Novos Processos
     "HP-COM": run_hp_com,
     "ZDP1": run_zdp1,
     "ZDP2": run_zdp2,
 }
 
 SEQUENCES = {
-    "HP": ["HP Completo"], # <--- MANTIDO ORIGINAL
+    "HP": ["HP Completo"],
     "HQ": ["HQ Completo"], 
     "HP+HQ": ["HP Completo", "HQ Completo"],
-    "13º Salário Completo": ["13º Salário"], "PLRs": ["PLRs"], 
-    "Ficha Financeira": ["Ficha Financeira"], "CTPS Digital": ["CTPS Digital"], 
-    "HP Individual": ["HP Individual (Off-Cycle)"], "1ª Parcela 13º": ["1ª Parcela 13º"],
-    "2ª Parcela 13º": ["2ª Parcela 13º"], "PLR 2022": ["PLR 2022"], "PLR 2025": ["PLR 2025"],
-    "Massa Completa de Holerites": ["HP Completo", "HQ Completo", "13º Salário", "PLRs"],
-    "Ficha + CTPS": ["Ficha Financeira", "CTPS Digital"],
-    "EXECUTAR TUDO": ["Massa Completa de Holerites", "Ficha Financeira", "CTPS Digital", "HP Individual (Off-Cycle)"],
-
-    # --- 3. NOVAS SEQUÊNCIAS ADICIONADAS ---
+    "13º Salário Completo": ["13º Salário"], 
+    "PLRs Normal": ["PLRs"], 
+    "Ficha Financeira": ["Ficha Financeira"], 
+    "CTPS Digital": ["CTPS Digital"], 
+    
+    # Sequência unificada
+    "HP Individual": ["HP Individual (Off-Cycle)"], 
+    
+    "1ª Parcela 13º": ["1ª Parcela 13º"],
+    "2ª Parcela 13º": ["2ª Parcela 13º"],
+    
+    # Sequências Novas
     "HP-COM": ["HP-COM"],
     "ZDP1": ["ZDP1"],
     "ZDP2": ["ZDP2"],
+
+    # Combos
+    "Massa Completa de Holerites": ["HP Completo", "HQ Completo", "13º Salário", "PLRs"],
+    "Ficha + CTPS": ["Ficha Financeira", "CTPS Digital"],
+    "EXECUTAR TUDO": ["Massa Completa de Holerites", "Ficha Financeira", "CTPS Digital", "HP Individual (Off-Cycle)"],
 }
 
 CONFIG_FILE = resource_path("config.json")
@@ -208,7 +214,7 @@ class AppSAP:
         sidebar.grid(row=0, column=0, sticky="nsew")
         sidebar.grid_columnconfigure(0, weight=1)
 
-        title_label = ttk.Label(sidebar, text="SAP", font=("", 18, "bold"), bootstyle="primary")
+        title_label = ttk.Label(sidebar, text="SAP Automação", font=("", 18, "bold"), bootstyle="primary")
         title_label.grid(row=0, column=0, sticky="ew", pady=(10, 30))
         title_label.bind("<Button-1>", self.vapor_easter_egg_check)
 
@@ -288,23 +294,18 @@ class AppSAP:
         notebook.add(holerites_tab, text="Holerites", sticky="nsew")
         holerites_tab.columnconfigure(0, weight=1)
         
-        # --- 4. BOTÕES DA ABA HOLERITES ---
-        # Botão HP Completo (Original)
         btn = ttk.Button(holerites_tab, text="Executar HP (Completo)", command=lambda: self.start_automation("HP"), bootstyle="primary"); 
         btn.grid(row=0, column=0, sticky="ew", pady=5); 
         self.all_buttons.append(btn)
         
-        # Botão HQ Completo (Original)
         btn = ttk.Button(holerites_tab, text="Executar HQ (Completo)", command=lambda: self.start_automation("HQ"), bootstyle="primary"); 
         btn.grid(row=1, column=0, sticky="ew", pady=5); 
         self.all_buttons.append(btn)
         
-        # Botão HP + HQ (Original)
         btn = ttk.Button(holerites_tab, text="Executar HP + HQ", command=lambda: self.start_automation("HP+HQ"), bootstyle="info"); 
         btn.grid(row=2, column=0, sticky="ew", pady=10); 
         self.all_buttons.append(btn)
         
-        # Botão NOVO HP-COM
         btn = ttk.Button(holerites_tab, text="Executar HP-COM (Avulso)", command=lambda: self.start_automation("HP-COM"), bootstyle="primary-outline"); 
         btn.grid(row=3, column=0, sticky="ew", pady=5); 
         self.all_buttons.append(btn)
@@ -313,48 +314,45 @@ class AppSAP:
         anuais_tab = ScrolledFrame(notebook, padding=10, autohide=True).container
         notebook.add(anuais_tab, text="Anuais", sticky="nsew") 
         anuais_tab.columnconfigure(0, weight=1)
+        
         ttk.Label(anuais_tab, text="Décimo Terceiro:").grid(row=0, column=0, sticky="w", pady=(5, 0))
         btn = ttk.Button(anuais_tab, text="13º Salário (Completo)", command=lambda: self.start_automation("13º Salário Completo"), bootstyle="success"); btn.grid(row=1, column=0, sticky="ew", pady=5); self.all_buttons.append(btn)
         btn = ttk.Button(anuais_tab, text="1ª Parcela 13º", command=lambda: self.start_automation("1ª Parcela 13º"), bootstyle="primary-outline"); btn.grid(row=2, column=0, sticky="ew", pady=2); self.all_buttons.append(btn)
         btn = ttk.Button(anuais_tab, text="2ª Parcela 13º", command=lambda: self.start_automation("2ª Parcela 13º"), bootstyle="primary-outline"); btn.grid(row=3, column=0, sticky="ew", pady=5); self.all_buttons.append(btn)
+        
         ttk.Separator(anuais_tab).grid(row=4, column=0, sticky="ew", pady=10)
-        ttk.Label(anuais_tab, text="PLRs:").grid(row=5, column=0, sticky="w", pady=(5, 0))
-        btn = ttk.Button(anuais_tab, text="PLRs (Completo)", command=lambda: self.start_automation("PLRs"), bootstyle="success"); btn.grid(row=6, column=0, sticky="ew", pady=5); self.all_buttons.append(btn)
-        btn = ttk.Button(anuais_tab, text="PLR 2022 (Avulso)", command=lambda: self.start_automation("PLR 2022"), bootstyle="primary-outline"); btn.grid(row=7, column=0, sticky="ew", pady=2); self.all_buttons.append(btn)
-        btn = ttk.Button(anuais_tab, text="PLR 2025 (Avulso)", command=lambda: self.start_automation("PLR 2025"), bootstyle="primary-outline"); btn.grid(row=8, column=0, sticky="ew", pady=5); self.all_buttons.append(btn)
+        
+        ttk.Label(anuais_tab, text="PLRs (Folha Normal):").grid(row=5, column=0, sticky="w", pady=(5, 0))
+        btn = ttk.Button(anuais_tab, text="PLRs (Completo)", command=lambda: self.start_automation("PLRs Normal"), bootstyle="success"); btn.grid(row=6, column=0, sticky="ew", pady=5); self.all_buttons.append(btn)
+        # Nota: PLRs individuais (Off-cycle) agora são gerados na aba "Documentos"
         
     def _create_docs_tab(self, notebook):
         docs_tab = ScrolledFrame(notebook, padding=10, autohide=True).container
         notebook.add(docs_tab, text="Documentos", sticky="nsew")
         docs_tab.columnconfigure(0, weight=1)
         
-        # --- 5. BOTÕES DA ABA DOCUMENTOS ---
-        # Botão para Ficha Financeira (Original)
         btn = ttk.Button(docs_tab, text="Gerar Ficha Financeira", command=lambda: self.start_automation("Ficha Financeira"), bootstyle="primary"); 
         btn.grid(row=0, column=0, sticky="ew", pady=5); 
         self.all_buttons.append(btn)
         
-        # Botão para CTPS Digital (Original)
         btn = ttk.Button(docs_tab, text="Gerar CTPS Digital", command=lambda: self.start_automation("CTPS Digital"), bootstyle="primary"); 
         btn.grid(row=1, column=0, sticky="ew", pady=5); 
         self.all_buttons.append(btn)
         
-        # Botão Ficha Financeira + CTPS Digital (Original)
         btn = ttk.Button(docs_tab, text="Ficha Financeira + CTPS Digital (Em Sequência)", command=lambda: self.start_automation("Ficha + CTPS"), bootstyle="success-outline"); 
         btn.grid(row=2, column=0, sticky="ew", pady=10); 
         self.all_buttons.append(btn)
         
-        # Botão para HP Individual (Off-Cycle) (Original)
-        btn = ttk.Button(docs_tab, text="Gerar HP Individual (Off-Cycle)", command=lambda: self.start_automation("HP Individual"), bootstyle="info"); 
+        # Botão Unificado: Férias / Rescisão / PLR (PPR)
+        btn = ttk.Button(docs_tab, text="Gerar Off-Cycle (Férias/Rescisão/PLR/Ajustes)", command=lambda: self.start_automation("HP Individual"), bootstyle="info"); 
         btn.grid(row=3, column=0, sticky="ew", pady=5); 
         self.all_buttons.append(btn)
         
-        # Botão NOVO ZDP1
+        # Novos ZDP
         btn = ttk.Button(docs_tab, text="Gerar ZDP1", command=lambda: self.start_automation("ZDP1"), bootstyle="warning-outline"); 
         btn.grid(row=4, column=0, sticky="ew", pady=(10, 5)); 
         self.all_buttons.append(btn)
 
-        # Botão NOVO ZDP2
         btn = ttk.Button(docs_tab, text="Gerar ZDP2", command=lambda: self.start_automation("ZDP2"), bootstyle="warning-outline"); 
         btn.grid(row=5, column=0, sticky="ew", pady=5); 
         self.all_buttons.append(btn)
@@ -563,11 +561,6 @@ class AppSAP:
                 
                 if processo_nome in PROCESS_MAP:
                     funcao_a_executar = PROCESS_MAP[processo_nome]
-                    
-                    # Para ZDP1 e ZDP2, o 'config' vazio é passado ({}).
-                    # Os orquestradores (zdp1.py, zdp2.py) foram projetados
-                    # para lidar com isso e executarão o modo 'worker' padrão.
-                    
                     sucesso, mensagem = funcao_a_executar(session, matriculas_lista, periodo, config, self.output_base_path, progress_queue=self.progress_queue)
                     if not sucesso:
                         raise RuntimeError(f"Erro em '{processo_nome}': {mensagem}")

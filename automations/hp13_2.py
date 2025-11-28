@@ -29,7 +29,7 @@ def inserir_matriculas(session, matriculas):
         return False
 
 def execute(session, matriculas, periodo, config, output_base_path, progress_queue=None):
-    """Executa a 2ª Parcela do 13º Salário para os anos de 2021 a 2024."""
+    """Executa a 2ª Parcela do 13º Salário para os anos de 2021 a 2025."""
     try:
         print("--- Iniciando processo '13º Salário - 2ª Parcela' ---")
         bondt_lookup = {
@@ -45,7 +45,7 @@ def execute(session, matriculas, periodo, config, output_base_path, progress_que
         shell.setCurrentCell(1, "TEXT"); shell.selectedRows = "1"
         session.findById("wnd[1]/tbar[0]/btn[2]").press(); time.sleep(1)
 
-        anos_a_processar = list(range(2021, 2025))
+        anos_a_processar = list(range(2021, 2026))
         if progress_queue:
             progress_queue.put({"type": "task_list", "tasks": [f"13º (2ª) - {ano}" for ano in anos_a_processar]})
 
