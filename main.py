@@ -15,28 +15,24 @@ import time
 # --- Funções de backend, imports, dicionários e constantes ---
 
 def resource_path(relative_path):
-    """ Retorna o caminho absoluto para o recurso, funciona para dev e para PyInstaller """
     try:
         base_path = sys._MEIPASS
     except Exception:
         base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
 
-# --- Mocks para automação (se os módulos reais não forem encontrados) ---
+# --- Mocks ---
 try:
     from automations.sap_utils import connect_to_sap
-    # Módulos Originais
     from automations.hp_completo import execute as run_hp_completo
     from automations.hq_completo import execute as run_hq_completo
     from automations.decimo_terceiro import execute as run_decimo_terceiro
-    from automations.plrs import execute as run_plrs # PLR de Folha Normal
+    from automations.plrs import execute as run_plrs
     from automations.ctps_digital import execute as run_ctps_digital
     from automations.ficha_financeira import execute as run_ficha_financeira
-    from automations.hp_individual import execute as run_hp_individual # Agora UNIFICADO
+    from automations.hp_individual import execute as run_hp_individual
     from automations.hp13_1 import execute as run_hp13_1
     from automations.hp13_2 import execute as run_hp13_2
-    
-    # Módulos Novos
     from automations.hp_com import execute as run_hp_com 
     from automations.zdp1 import execute as run_zdp1
     from automations.zdp2 import execute as run_zdp2 
@@ -52,7 +48,6 @@ except ImportError as e:
                 q.put({"type": "status", "detalhe": f"Simulando tarefa {i+1}/5..."})
         return True, "Simulação concluída."
 
-    # Mocks para funções
     if 'run_hp_completo' not in locals(): run_hp_completo = mock_execute
     if 'run_hq_completo' not in locals(): run_hq_completo = mock_execute
     if 'run_decimo_terceiro' not in locals(): run_decimo_terceiro = mock_execute
@@ -66,20 +61,16 @@ except ImportError as e:
     if 'run_zdp1' not in locals(): run_zdp1 = mock_execute
     if 'run_zdp2' not in locals(): run_zdp2 = mock_execute
 
-
-# --- Mapeamento de Tarefas e Sequências ---
 PROCESS_MAP = {
     "HP Completo": run_hp_completo,
     "HQ Completo": run_hq_completo, 
     "13º Salário": run_decimo_terceiro,
-    "PLRs": run_plrs, # PLR Folha Normal
+    "PLRs": run_plrs,
     "CTPS Digital": run_ctps_digital, 
     "Ficha Financeira": run_ficha_financeira,
-    "HP Individual (Off-Cycle)": run_hp_individual, # Unificado (Férias/Rescisão/PPR)
+    "HP Individual (Off-Cycle)": run_hp_individual,
     "1ª Parcela 13º": run_hp13_1,
     "2ª Parcela 13º": run_hp13_2,
-    
-    # Novos Processos
     "HP-COM": run_hp_com,
     "ZDP1": run_zdp1,
     "ZDP2": run_zdp2,
@@ -93,19 +84,12 @@ SEQUENCES = {
     "PLRs Normal": ["PLRs"], 
     "Ficha Financeira": ["Ficha Financeira"], 
     "CTPS Digital": ["CTPS Digital"], 
-    
-    # Sequência unificada
     "HP Individual": ["HP Individual (Off-Cycle)"], 
-    
     "1ª Parcela 13º": ["1ª Parcela 13º"],
     "2ª Parcela 13º": ["2ª Parcela 13º"],
-    
-    # Sequências Novas
     "HP-COM": ["HP-COM"],
     "ZDP1": ["ZDP1"],
     "ZDP2": ["ZDP2"],
-
-    # Combos
     "Massa Completa de Holerites": ["HP Completo", "HQ Completo", "13º Salário", "PLRs"],
     "Ficha + CTPS": ["Ficha Financeira", "CTPS Digital"],
     "EXECUTAR TUDO": ["Massa Completa de Holerites", "Ficha Financeira", "CTPS Digital", "HP Individual (Off-Cycle)"],
@@ -127,7 +111,6 @@ class AppSAP:
         except Exception:
             pass
 
-        # Variáveis de Estado
         self.output_base_path = ""
         self.progress_queue = queue.Queue()
         self.automation_thread = None
@@ -137,13 +120,15 @@ class AppSAP:
         self.vapor_clicks, self.solar_clicks = 0, 0
         self.last_click_time = 0
 
-        # Variáveis Tkinter
         self.path_entry_var = ttk.StringVar(value="Nenhuma pasta selecionada")
         self.theme_switch_var = ttk.BooleanVar()
         self.geral_status_var = ttk.StringVar(value="Pronto para iniciar.")
         self.detalhe_status_var = ttk.StringVar(value="Aguardando uma nova tarefa...")
         self.debug_label_var = ttk.StringVar()
         
+        # Variável para o tipo de saída da Ficha Financeira
+        self.tipo_ficha_var = ttk.StringVar(value="HTML (Layout Padrão)")
+
         self._init_combobox_vars()
         self._create_widgets()
         
@@ -189,11 +174,9 @@ class AppSAP:
     def _create_status_bar(self, parent):
         status_bar = ttk.Frame(parent, relief=SUNKEN, padding=(5, 2))
         status_bar.pack(side=BOTTOM, fill=X)
-        
         ttk.Label(status_bar, textvariable=self.geral_status_var, bootstyle="info", font=("", 10, "bold")).pack(side=LEFT, padx=(5, 10))
         ttk.Label(status_bar, textvariable=self.detalhe_status_var, bootstyle="secondary").pack(side=LEFT, padx=10)
         ttk.Label(status_bar, textvariable=self.debug_label_var, bootstyle="secondary", font=("", 8)).pack(side=RIGHT, padx=5)
-        
         self.app.bind("<Configure>", self.on_resize)
         self.app.after(100, self.on_resize, None) 
 
@@ -224,7 +207,6 @@ class AppSAP:
             self.sidebar_buttons[name] = btn
 
         sidebar.grid_rowconfigure(len(SIDEBAR_BUTTONS) + 1, weight=1)
-        
         theme_switch = ttk.Checkbutton(sidebar, text="Tema Claro/Escuro", variable=self.theme_switch_var, command=self.toggle_theme, bootstyle="success-round-toggle")
         theme_switch.grid(row=len(SIDEBAR_BUTTONS) + 2, column=0, sticky="ew", pady=(20, 10))
 
@@ -295,20 +277,13 @@ class AppSAP:
         holerites_tab.columnconfigure(0, weight=1)
         
         btn = ttk.Button(holerites_tab, text="Executar HP (Completo)", command=lambda: self.start_automation("HP"), bootstyle="primary"); 
-        btn.grid(row=0, column=0, sticky="ew", pady=5); 
-        self.all_buttons.append(btn)
-        
+        btn.grid(row=0, column=0, sticky="ew", pady=5); self.all_buttons.append(btn)
         btn = ttk.Button(holerites_tab, text="Executar HQ (Completo)", command=lambda: self.start_automation("HQ"), bootstyle="primary"); 
-        btn.grid(row=1, column=0, sticky="ew", pady=5); 
-        self.all_buttons.append(btn)
-        
+        btn.grid(row=1, column=0, sticky="ew", pady=5); self.all_buttons.append(btn)
         btn = ttk.Button(holerites_tab, text="Executar HP + HQ", command=lambda: self.start_automation("HP+HQ"), bootstyle="info"); 
-        btn.grid(row=2, column=0, sticky="ew", pady=10); 
-        self.all_buttons.append(btn)
-        
+        btn.grid(row=2, column=0, sticky="ew", pady=10); self.all_buttons.append(btn)
         btn = ttk.Button(holerites_tab, text="Executar HP-COM (Avulso)", command=lambda: self.start_automation("HP-COM"), bootstyle="primary-outline"); 
-        btn.grid(row=3, column=0, sticky="ew", pady=5); 
-        self.all_buttons.append(btn)
+        btn.grid(row=3, column=0, sticky="ew", pady=5); self.all_buttons.append(btn)
         
     def _create_anuais_tab(self, notebook):
         anuais_tab = ScrolledFrame(notebook, padding=10, autohide=True).container
@@ -319,44 +294,42 @@ class AppSAP:
         btn = ttk.Button(anuais_tab, text="13º Salário (Completo)", command=lambda: self.start_automation("13º Salário Completo"), bootstyle="success"); btn.grid(row=1, column=0, sticky="ew", pady=5); self.all_buttons.append(btn)
         btn = ttk.Button(anuais_tab, text="1ª Parcela 13º", command=lambda: self.start_automation("1ª Parcela 13º"), bootstyle="primary-outline"); btn.grid(row=2, column=0, sticky="ew", pady=2); self.all_buttons.append(btn)
         btn = ttk.Button(anuais_tab, text="2ª Parcela 13º", command=lambda: self.start_automation("2ª Parcela 13º"), bootstyle="primary-outline"); btn.grid(row=3, column=0, sticky="ew", pady=5); self.all_buttons.append(btn)
-        
         ttk.Separator(anuais_tab).grid(row=4, column=0, sticky="ew", pady=10)
-        
         ttk.Label(anuais_tab, text="PLRs (Folha Normal):").grid(row=5, column=0, sticky="w", pady=(5, 0))
         btn = ttk.Button(anuais_tab, text="PLRs (Completo)", command=lambda: self.start_automation("PLRs Normal"), bootstyle="success"); btn.grid(row=6, column=0, sticky="ew", pady=5); self.all_buttons.append(btn)
-        # Nota: PLRs individuais (Off-cycle) agora são gerados na aba "Documentos"
         
     def _create_docs_tab(self, notebook):
         docs_tab = ScrolledFrame(notebook, padding=10, autohide=True).container
         notebook.add(docs_tab, text="Documentos", sticky="nsew")
         docs_tab.columnconfigure(0, weight=1)
         
-        btn = ttk.Button(docs_tab, text="Gerar Ficha Financeira", command=lambda: self.start_automation("Ficha Financeira"), bootstyle="primary"); 
-        btn.grid(row=0, column=0, sticky="ew", pady=5); 
+        # --- Grupo Ficha Financeira com Seleção ---
+        ff_frame = ttk.Frame(docs_tab)
+        ff_frame.grid(row=0, column=0, sticky="ew", pady=5)
+        ff_frame.columnconfigure(0, weight=1)
+        
+        btn = ttk.Button(ff_frame, text="Gerar Ficha Financeira", command=lambda: self.start_automation("Ficha Financeira"), bootstyle="primary")
+        btn.pack(side=LEFT, fill=X, expand=YES, padx=(0, 5))
         self.all_buttons.append(btn)
+        
+        # Combobox para escolha do tipo
+        combo_ff = ttk.Combobox(ff_frame, textvariable=self.tipo_ficha_var, values=["HTML (Layout Padrão)", "PDF (Exportação Direta)"], state="readonly", width=22)
+        combo_ff.pack(side=LEFT)
         
         btn = ttk.Button(docs_tab, text="Gerar CTPS Digital", command=lambda: self.start_automation("CTPS Digital"), bootstyle="primary"); 
-        btn.grid(row=1, column=0, sticky="ew", pady=5); 
-        self.all_buttons.append(btn)
+        btn.grid(row=1, column=0, sticky="ew", pady=5); self.all_buttons.append(btn)
         
         btn = ttk.Button(docs_tab, text="Ficha Financeira + CTPS Digital (Em Sequência)", command=lambda: self.start_automation("Ficha + CTPS"), bootstyle="success-outline"); 
-        btn.grid(row=2, column=0, sticky="ew", pady=10); 
-        self.all_buttons.append(btn)
+        btn.grid(row=2, column=0, sticky="ew", pady=10); self.all_buttons.append(btn)
         
-        # Botão Unificado: Férias / Rescisão / PLR (PPR)
         btn = ttk.Button(docs_tab, text="Gerar Off-Cycle (Férias/Rescisão/PLR/Ajustes)", command=lambda: self.start_automation("HP Individual"), bootstyle="info"); 
-        btn.grid(row=3, column=0, sticky="ew", pady=5); 
-        self.all_buttons.append(btn)
+        btn.grid(row=3, column=0, sticky="ew", pady=5); self.all_buttons.append(btn)
         
-        # Novos ZDP
         btn = ttk.Button(docs_tab, text="Gerar ZDP1", command=lambda: self.start_automation("ZDP1"), bootstyle="warning-outline"); 
-        btn.grid(row=4, column=0, sticky="ew", pady=(10, 5)); 
-        self.all_buttons.append(btn)
+        btn.grid(row=4, column=0, sticky="ew", pady=(10, 5)); self.all_buttons.append(btn)
 
         btn = ttk.Button(docs_tab, text="Gerar ZDP2", command=lambda: self.start_automation("ZDP2"), bootstyle="warning-outline"); 
-        btn.grid(row=5, column=0, sticky="ew", pady=5); 
-        self.all_buttons.append(btn)
-        
+        btn.grid(row=5, column=0, sticky="ew", pady=5); self.all_buttons.append(btn)
 
     def _create_status_page(self, parent):
         page_frame = ttk.Frame(parent, padding=10)
@@ -371,7 +344,6 @@ class AppSAP:
 
         self.progress_meter = Meter(exec_frame, metersize=180, padding=10, amountused=0, metertype="semi", subtext="Progresso Geral", interactive=False, bootstyle="info", textright="%")
         self.progress_meter.grid(row=0, column=0, rowspan=2, padx=(0, 20), sticky="ns")
-        
         ttk.Label(exec_frame, textvariable=self.geral_status_var, font=("", 14, "bold")).grid(row=0, column=1, sticky="nsw")
         ttk.Label(exec_frame, textvariable=self.detalhe_status_var, bootstyle="secondary").grid(row=1, column=1, sticky="nsw")
 
@@ -399,10 +371,7 @@ class AppSAP:
         ttk.Label(page_frame, text="Configurações Avançadas (Oculta)", font=("", 18, "bold"), bootstyle="primary").grid(row=0, column=0, sticky="w", pady=(0, 20))
         config_box = ttk.Labelframe(page_frame, text=" ⚙️ Opções Globais ", padding=20)
         config_box.grid(row=1, column=0, sticky="ew")
-        ttk.Label(config_box, text="Esta área está reservada para futuras configurações, como:").pack(anchor=W, pady=5)
-        ttk.Label(config_box, text="- Seleção de Mandantes/Sistemas SAP", bootstyle="secondary").pack(anchor=W, padx=10)
-        ttk.Label(config_box, text="- Opções de Logging e Debugging", bootstyle="secondary").pack(anchor=W, padx=10)
-        ttk.Label(config_box, text="- Configuração de Impressão/PDFs", bootstyle="secondary").pack(anchor=W, padx=10)
+        ttk.Label(config_box, text="Esta área está reservada para futuras configurações.").pack(anchor=W, pady=5)
         return page_frame
     
     def load_config(self):
@@ -519,6 +488,10 @@ class AppSAP:
         matriculas_lista = [linha.strip() for linha in input_text.split("\n") if linha.strip()]
         periodo = {"inicio": f"{self.combo_mes_inicio.get()}/{self.combo_ano_inicio.get()}", "fim": f"{self.combo_mes_fim.get()}/{self.combo_ano_fim.get()}"}
         
+        # Lê a configuração de PDF/HTML
+        tipo_ficha_valor = "PDF" if "PDF" in self.tipo_ficha_var.get() else "HTML"
+        config = {"tipo_saida": tipo_ficha_valor}
+
         for btn in self.all_buttons:
             btn.configure(state="disabled")
         self.show_frame("STATUS")
@@ -527,7 +500,7 @@ class AppSAP:
         self.progress_list_items.clear()
         
         self.app.config(cursor="watch")
-        self.automation_thread = threading.Thread(target=self.automation_worker, args=(sequence_name, matriculas_lista, periodo, {}), daemon=True)
+        self.automation_thread = threading.Thread(target=self.automation_worker, args=(sequence_name, matriculas_lista, periodo, config), daemon=True)
         self.automation_thread.start()
         self.app.after(100, self.process_queue)
 
@@ -536,7 +509,6 @@ class AppSAP:
             self.progress_queue.put({"type": "status", "geral": "Conectando ao SAP...", "detalhe": ""})
             session = connect_to_sap()
             
-            # Verificação de conexão melhorada
             is_mock_mode = 'run_hp_completo' in locals() and run_hp_completo is mock_execute
             if session is None and not is_mock_mode:
                 raise ConnectionError("Falha na conexão com o SAP. Verifique se o SAP GUI está aberto e logado.")
