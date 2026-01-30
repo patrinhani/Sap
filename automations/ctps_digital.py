@@ -58,8 +58,22 @@ def execute(session, matriculas, periodo, config, output_base_path, progress_que
                     session.findById("wnd[1]/tbar[0]/btn[2]").press(); time.sleep(0.5)
                 except Exception:
                     session.findById("wnd[1]").close(); time.sleep(0.5)
+                
+                # Preenchimento dos campos principais
                 session.findById("wnd[0]/usr/ctxtPNPPERNR-LOW").text = matricula
                 session.findById("wnd[0]/usr/ctxtPNPBUKRS-LOW").text = codigo_empresa
+                
+                # --- ALTERAÇÕES BASEADAS NO VBA ---
+                # Desmarcar/Marcar checkboxes específicos e dar Enter
+                try:
+                    session.findById("wnd[0]/usr/chkC_SF").selected = False
+                    session.findById("wnd[0]/usr/chkC_CARR").selected = True
+                    session.findById("wnd[0]").sendVKey(0) # Enter para validar
+                    time.sleep(0.5)
+                except Exception as e:
+                    print(f"Aviso: Erro ao manipular checkboxes para matrícula {matricula}: {e}")
+                # ----------------------------------
+
                 session.findById("wnd[0]/usr/ctxtP_CARR").text = caminho_salvar_completo
                 session.findById("wnd[0]/tbar[1]/btn[8]").press(); time.sleep(0.5)
                 
