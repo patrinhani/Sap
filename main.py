@@ -140,7 +140,7 @@ class AppSAP:
     def _init_combobox_vars(self):
         now = datetime.now()
         current_year = now.year
-        self.years = [str(i) for i in range(current_year - 4, current_year + 5)]
+        self.years = [str(i) for i in range(current_year - 5, current_year + 5)]
         self.months = [f"{i:02d}" for i in range(1, 13)]
         
         self.combo_mes_inicio = ttk.StringVar(value=f"{now.month:02d}")
