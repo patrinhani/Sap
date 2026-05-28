@@ -6,10 +6,10 @@ from .path_utils import get_save_path
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 try:
-    from automations.sap_utils import connect_to_sap, keep_alive
+    from automations.sap_utils import connect_to_sap, keep_alive, start_sapgui_security_watcher
 except ImportError:
     try:
-        from sap_utils import connect_to_sap, keep_alive
+        from sap_utils import connect_to_sap, keep_alive, start_sapgui_security_watcher
     except ImportError:
         def connect_to_sap(): return None
         def keep_alive(session): print("AVISO: Função keep_alive não encontrada.")
@@ -105,6 +105,7 @@ def execute(session, matriculas, periodo, config, output_base_path, progress_que
                     session.findById("wnd[0]/usr/radP_PDF").setFocus()
                     
                     # 5. Executa (O SAP salva automaticamente com o nome fornecido)
+                    start_sapgui_security_watcher(timeout=10)
                     session.findById("wnd[0]/tbar[1]/btn[8]").press()
                     
                     # Verifica erros
@@ -154,6 +155,7 @@ def execute(session, matriculas, periodo, config, output_base_path, progress_que
                         if encontrou_empresa_valida: break
                         try:
                             session.findById("wnd[0]/usr/ctxtPNPBUKRS-LOW").text = empresa
+                            start_sapgui_security_watcher(timeout=10)
                             session.findById("wnd[0]/tbar[1]/btn[8]").press(); time.sleep(2)
                             
                             session.findById("wnd[0]/tbar[1]/btn[45]").press(); time.sleep(0.5) 

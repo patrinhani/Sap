@@ -7,10 +7,10 @@ import pyautogui
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 try:
-    from automations.sap_utils import connect_to_sap, keep_alive
+    from automations.sap_utils import connect_to_sap, keep_alive, start_sapgui_security_watcher
 except ImportError:
     try:
-        from sap_utils import connect_to_sap, keep_alive
+        from sap_utils import connect_to_sap, keep_alive, start_sapgui_security_watcher
     except ImportError:
         def connect_to_sap(): return None
         def keep_alive(session): print("AVISO: Função keep_alive não encontrada.")
@@ -87,6 +87,7 @@ def execute(session, matriculas, periodo, config, output_base_path, progress_que
             session.findById("wnd[0]/usr/ctxtPNPPERNR-LOW").text = matricula
             
             keep_alive(session)
+            start_sapgui_security_watcher(timeout=10)
             session.findById("wnd[0]/tbar[1]/btn[8]").press(); time.sleep(1)
             
             session.findById("wnd[1]/usr/ctxtSFPOUTPAR-DEST").text = "ZPDF"

@@ -1,7 +1,7 @@
 # automations/zct2_worker.py
 import time
 from .path_utils import get_save_path
-from .sap_utils import keep_alive
+from .sap_utils import keep_alive, start_sapgui_security_watcher
 
 def execute(session, matriculas, mes, ano, output_base_path, progress_queue=None):
     if not matriculas: return True, "Nenhuma matrícula para ZCT2."
@@ -36,6 +36,7 @@ def execute(session, matriculas, mes, ano, output_base_path, progress_queue=None
             raise RuntimeError("Falha ao inserir matrículas no processo ZCT2.")
         
         keep_alive(session)
+        start_sapgui_security_watcher(timeout=10)
         session.findById("wnd[0]/tbar[1]/btn[8]").press(); time.sleep(2)
         session.findById("wnd[0]/tbar[0]/btn[15]").press(); time.sleep(1)
 

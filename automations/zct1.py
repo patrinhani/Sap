@@ -1,6 +1,7 @@
 # automations/zct1.py
 import time
 from .path_utils import get_save_path
+from .sap_utils import start_sapgui_security_watcher
 
 def execute(session, matriculas, periodo, mes, ano, output_base_path, progress_queue):
     if not matriculas: return True, "Nenhuma matrícula para processar."
@@ -33,6 +34,7 @@ def execute(session, matriculas, periodo, mes, ano, output_base_path, progress_q
         
         # ... (lógica para inserir a lista de matrículas) ...
 
+        start_sapgui_security_watcher(timeout=10)
         session.findById("wnd[0]/tbar[1]/btn[8]").press(); time.sleep(2)
         session.findById("wnd[0]/tbar[0]/btn[3]").press(); time.sleep(1) # Volta
 

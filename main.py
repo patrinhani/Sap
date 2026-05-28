@@ -1,7 +1,7 @@
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
-from ttkbootstrap.scrolled import ScrolledFrame
-from ttkbootstrap.widgets import Meter, Notebook
+from ttkbootstrap.widgets.scrolled import ScrolledFrame
+from ttkbootstrap.widgets import Meter
 from tkinter import filedialog, messagebox, VERTICAL, W, E, S, N, LEFT, RIGHT, BOTH, YES, BOTTOM, X, CENTER, WORD, END, SUNKEN
 import os
 import json
@@ -245,7 +245,7 @@ class AppSAP:
         self.textbox_matriculas.bind("<FocusIn>", self.on_text_focus_in)
         self.textbox_matriculas.bind("<FocusOut>", self.on_text_focus_out)
         
-        notebook = Notebook(page_frame)
+        notebook = ttk.Notebook(page_frame)
         notebook.grid(row=3, column=0, sticky="nsew", pady=(10, 10)) 
         
         self._create_holerites_tab(notebook)

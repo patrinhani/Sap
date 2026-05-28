@@ -8,10 +8,10 @@ from .path_utils import get_save_path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 try:
-    from automations.sap_utils import connect_to_sap, keep_alive
+    from automations.sap_utils import connect_to_sap, keep_alive, start_sapgui_security_watcher
 except ImportError:
     try:
-        from sap_utils import connect_to_sap, keep_alive
+        from sap_utils import connect_to_sap, keep_alive, start_sapgui_security_watcher
     except ImportError:
         # Fallback para testes locais sem a biblioteca completa
         def connect_to_sap(): return None
@@ -114,6 +114,7 @@ def execute(session, matriculas, periodo, config, output_base_path, progress_que
                     session.findById("wnd[0]/usr/ctxtP_CARR").caretPosition = len(caminho_salvar_completo)
                     
                     # 5. Executar (F8)
+                    start_sapgui_security_watcher(timeout=10)
                     session.findById("wnd[0]/tbar[1]/btn[8]").press()
                     
                     # Espera processamento

@@ -2,6 +2,98 @@ import win32com.client
 import sys
 import time
 
+def allow_sapgui_security_prompt(timeout=5):
+    """Autoriza o popup de seguranca do SAP GUI, marcando memorizar decisao."""
+    try:
+        import win32gui
+        import win32con
+        shell = win32com.client.Dispatch("WScript.Shell")
+    except Exception as e:
+        print(f"   AVISO: Nao foi possivel preparar popup SAPGUI: {e}")
+        return False
+
+    def find_sapgui_windows():
+        windows = []
+
+        def enum_handler(hwnd, _):
+            try:
+                if win32gui.IsWindowVisible(hwnd):
+                    title = win32gui.GetWindowText(hwnd)
+                    if "sapgui" in title.lower():
+                        windows.append(hwnd)
+            except Exception:
+                pass
+            return True
+
+        win32gui.EnumWindows(enum_handler, None)
+        return windows
+
+    def click_child_by_text(hwnd, text_check, check_state=False):
+        clicked = False
+
+        def enum_child(child, _):
+            nonlocal clicked
+            try:
+                text = win32gui.GetWindowText(child).strip().replace("&", "").lower()
+                if text_check(text):
+                    if check_state:
+                        state = win32gui.SendMessage(child, win32con.BM_GETCHECK, 0, 0)
+                        if state:
+                            clicked = True
+                            return False
+                    win32gui.PostMessage(child, win32con.BM_CLICK, 0, 0)
+                    clicked = True
+                    return False
+            except Exception:
+                pass
+            return True
+
+        win32gui.EnumChildWindows(hwnd, enum_child, None)
+        return clicked
+
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        for hwnd in find_sapgui_windows():
+            marcou_memorizar = click_child_by_text(
+                hwnd,
+                lambda text: "memorizar" in text or "remember" in text,
+                check_state=True,
+            )
+
+            if not marcou_memorizar:
+                try:
+                    win32gui.SetForegroundWindow(hwnd)
+                    time.sleep(0.2)
+                    shell.SendKeys("%m")
+                    time.sleep(0.2)
+                except Exception:
+                    pass
+
+            if click_child_by_text(hwnd, lambda text: text in ("permitir", "allow")):
+                print("   [LOG] Popup SAPGUI autorizado com memorizar decisao.")
+                return True
+
+            try:
+                win32gui.SetForegroundWindow(hwnd)
+                time.sleep(0.2)
+                shell.SendKeys("%p")
+                print("   [LOG] Popup SAPGUI autorizado por atalho Alt+P.")
+                return True
+            except Exception:
+                pass
+
+        time.sleep(0.2)
+
+    return False
+
+def start_sapgui_security_watcher(timeout=8):
+    """Inicia uma thread para autorizar popup SAPGUI enquanto o SAP processa."""
+    import threading
+
+    watcher = threading.Thread(target=allow_sapgui_security_prompt, args=(timeout,), daemon=True)
+    watcher.start()
+    return watcher
+
 def connect_to_sap():
     """
     Tenta se conectar a uma sessão SAP GUI aberta.
