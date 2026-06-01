@@ -174,6 +174,9 @@ def execute(session, matriculas, periodo, config, output_base_path, progress_que
 
         for i, (mes, ano) in enumerate(meses_a_processar):
             task_id = f"ZDP2 - {mes}/{ano}"
+            if progress_queue and hasattr(progress_queue, "should_skip") and progress_queue.should_skip(task_id):
+                progress_queue.put({"type": "task_update", "task_id": task_id, "status": "✅ Concluído (checkpoint)"})
+                continue
             if progress_queue:
                 progress_queue.put({"type": "status", "detalhe": f"Processando {len(matriculas)} matrículas para {task_id}"})
                 progress_queue.put({"type": "task_update", "task_id": task_id, "status": "Executando..."})

@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Manual de Uso - SAP Automação</title>
+  <style>
+    :root {
+      --bg: #101419;
+      --panel: #171d24;
+      --panel-2: #0f151c;
+      --line: #2a3441;
+      --text: #e6edf5;
+      --muted: #96a8bc;
+      --blue: #2f80d8;
+      --red: #d63d4f;
+      --green: #49b77f;
+      --yellow: #e8b84a;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+    }
+
+    a { color: #8ec5ff; }
+
+    .shell {
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    aside {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 24px 18px;
+      background: #0b0f14;
+      border-right: 1px solid var(--line);
+      overflow: auto;
+    }
+
+    main {
+      max-width: 1100px;
+      padding: 34px 42px 60px;
+    }
+
+    h1, h2, h3 { line-height: 1.2; }
+    h1 { margin: 0 0 8px; font-size: 34px; }
+    h2 { margin: 34px 0 14px; font-size: 24px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+    h3 { margin: 22px 0 10px; font-size: 18px; }
+
+    .subtitle { color: var(--muted); margin: 0 0 26px; }
+
+    .brand {
+      font-size: 20px;
+      font-weight: 750;
+      margin-bottom: 4px;
+    }
+
+    .small { color: var(--muted); font-size: 13px; }
+
+    nav a {
+      display: block;
+      padding: 9px 10px;
+      color: #c7d6e8;
+      text-decoration: none;
+      border-radius: 6px;
+      margin: 3px 0;
+      font-weight: 600;
+    }
+
+    nav a:hover { background: #172231; color: #fff; }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px 18px;
+      margin: 14px 0;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .alert {
+      border-left: 4px solid var(--blue);
+      background: #102a47;
+    }
+
+    .warning {
+      border-left: 4px solid var(--red);
+      background: #351620;
+    }
+
+    .ok {
+      border-left: 4px solid var(--green);
+      background: #123022;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #12365f;
+      border: 1px solid var(--blue);
+      color: #dcecff;
+      font-size: 12px;
+      font-weight: 700;
+      margin-right: 5px;
+    }
+
+    code, pre {
+      font-family: Consolas, "Courier New", monospace;
+      color: #f0f6ff;
+    }
+
+    code {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      padding: 2px 5px;
+      border-radius: 5px;
+    }
+
+    pre {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      overflow: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    th, td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th { background: #172231; color: #fff; }
+    tr:last-child td { border-bottom: 0; }
+    ul, ol { padding-left: 22px; }
+
+    .footer {
+      margin-top: 44px;
+      padding-top: 20px;
+      color: var(--muted);
+      border-top: 1px solid var(--line);
+      font-size: 13px;
+    }
+
+    @media (max-width: 860px) {
+      .shell { grid-template-columns: 1fr; }
+      aside { position: relative; height: auto; }
+      main { padding: 24px 18px 44px; }
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside>
+      <div class="brand">SAP Automação</div>
+      <div class="small">Manual de uso local</div>
+      <nav>
+        <a href="#visao-geral">Visão Geral</a>
+        <a href="#requisitos">Requisitos</a>
+        <a href="#primeiro-uso">Primeiro Uso</a>
+        <a href="#execucao">Como Executar</a>
+        <a href="#processos">Processos</a>
+        <a href="#retomada">Retomada e Checkpoint</a>
+        <a href="#arquivos">Arquivos Gerados</a>
+        <a href="#exe">Geração do EXE</a>
+        <a href="#problemas">Problemas Comuns</a>
+      </nav>
+    </aside>
+
+    <main>
+      <h1>Manual de Uso - SAP Automação</h1>
+      <p class="subtitle">Guia rápido para operar o aplicativo, retomar execuções interrompidas e gerar o executável.</p>
+
+      <section id="visao-geral">
+        <h2>Visão Geral</h2>
+        <div class="card alert">
+          <p>O aplicativo automatiza rotinas SAP de folha/documentos a partir de uma lista de matrículas, período e pasta de saída. A interface foi feita em PyQt6 e pode ser executada por <code>python main.py</code> ou empacotada como <code>.exe</code>.</p>
+        </div>
+        <p>O sistema usa senha informada no início da execução para abrir ou reconectar no SAP. A senha fica apenas em memória durante a execução e não é salva no arquivo de configuração.</p>
+      </section>
+
+      <section id="requisitos">
+        <h2>Requisitos</h2>
+        <div class="grid">
+          <div class="card">
+            <h3>SAP</h3>
+            <ul>
+              <li>SAP GUI instalado na máquina.</li>
+              <li>SAP GUI Scripting habilitado.</li>
+              <li>Conexão cadastrada no SAP Logon como <code>15. VIA ECP PRD Viavarejo</code>.</li>
+              <li>Usuário do Windows compatível com o login SAP.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Python</h3>
+            <ul>
+              <li>Ambiente virtual <code>.venv</code> configurado no projeto.</li>
+              <li>Dependências instaladas: PyQt6, pywin32, pandas/openpyxl e PyInstaller.</li>
+              <li>Para gerar EXE, usar os scripts de build da pasta do projeto.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="primeiro-uso">
+        <h2>Primeiro Uso</h2>
+        <ol>
+          <li>Abra o terminal na pasta do projeto: <code>C:\Users\2160048370\Downloads\Automações\Sap</code>.</li>
+          <li>Execute <code>python main.py</code> ou abra o <code>SapAutomacao.exe</code>.</li>
+          <li>Na aba <strong>Execução</strong>, selecione a pasta de saída.</li>
+          <li>Informe a senha SAP.</li>
+          <li>Escolha o período inicial e final.</li>
+          <li>Cole ou digite as matrículas, uma por linha.</li>
+          <li>Clique na rotina desejada.</li>
+        </ol>
+      </section>
+
+      <section id="execucao">
+        <h2>Como Executar</h2>
+        <div class="card">
+          <h3>Aba Execução</h3>
+          <p>É a tela principal. Nela ficam pasta de saída, senha SAP, período, tipo de ficha financeira, lista de matrículas e botões das rotinas.</p>
+          <p>Antes de iniciar, o aplicativo valida se existe pasta de saída e se existe ao menos uma matrícula. A senha SAP é obrigatória porque pode ser necessária para reconexão automática.</p>
+        </div>
+        <div class="card">
+          <h3>Aba Progresso</h3>
+          <p>Mostra o status geral, barra de progresso, itens processados e log em tempo real. É a melhor tela para acompanhar uma execução longa.</p>
+        </div>
+        <div class="card">
+          <h3>Aba Retomada</h3>
+          <p>Mostra se existe checkpoint pendente. Quando houver uma execução interrompida, o botão lateral <strong>Retomada !</strong> fica destacado em vermelho.</p>
+        </div>
+      </section>
+
+      <section id="processos">
+        <h2>Processos</h2>
+        <table>
+          <thead>
+            <tr><th>Grupo</th><th>Rotinas disponíveis</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Holerites</td>
+              <td>HP Completo, HQ Completo, HP + HQ, HP-COM, Massa Completa</td>
+            </tr>
+            <tr>
+              <td>Anuais</td>
+              <td>13º Salário, 1ª Parcela 13º, 2ª Parcela 13º, PLRs</td>
+            </tr>
+            <tr>
+              <td>Documentos</td>
+              <td>Ficha Financeira, CTPS Digital, Ficha + CTPS, HP Individual, ZDP1, ZDP2</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="card">
+          <p><span class="tag">HP Completo</span> executa <code>HP Holerite -> ZDP1 Holerite -> HP-COM</code>.</p>
+          <p><span class="tag">HQ Completo</span> executa <code>HQ Holerite -> ZDP2</code>.</p>
+        </div>
+      </section>
+
+      <section id="retomada">
+        <h2>Retomada e Checkpoint</h2>
+        <div class="card warning">
+          <p>O checkpoint existe apenas enquanto a execução está incompleta. Quando a execução termina com sucesso, o checkpoint é apagado automaticamente.</p>
+        </div>
+        <h3>Onde o checkpoint fica salvo</h3>
+        <p>O aplicativo salva o checkpoint em dois lugares:</p>
+        <pre>%APPDATA%\SapAutomacao\.sap_automacao_checkpoint.json
+&lt;pasta de saída&gt;\.sap_automacao_checkpoint.json</pre>
+        <p>A cópia global em <code>%APPDATA%</code> evita que a retomada desapareça quando a pessoa troca a pasta de saída na interface.</p>
+
+        <h3>Como a retomada funciona</h3>
+        <ul>
+          <li>Se o SAP cair, o app espera 60 segundos e tenta novamente.</li>
+          <li>São feitas até 4 tentativas por etapa.</li>
+          <li>Na tentativa seguinte, o app reabre/reconecta no SAP e refaz o login com a senha informada.</li>
+          <li>Se a execução for fechada ou falhar de vez, o checkpoint fica salvo para retomada futura.</li>
+          <li>A aba <strong>Retomada</strong> usa os parâmetros do checkpoint, não os campos atuais da tela.</li>
+        </ul>
+
+        <h3>Exemplos de retomada</h3>
+        <table>
+          <thead>
+            <tr><th>Situação</th><th>Retomada</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Caiu depois de concluir HP Holerite</td>
+              <td>Retoma no ZDP1 Holerite ou próxima etapa pendente.</td>
+            </tr>
+            <tr>
+              <td>Caiu no mês 2 de 12</td>
+              <td>Pula o mês 1 concluído e retoma no mês 2.</td>
+            </tr>
+            <tr>
+              <td>Caiu na matrícula 5 de 10 em processo individual</td>
+              <td>Pula as matrículas 1 a 4 e retoma na matrícula 5.</td>
+            </tr>
+            <tr>
+              <td>Caiu dentro de lote mensal que processa várias matrículas juntas</td>
+              <td>Retoma no mês/lote atual, porque a rotina SAP não expõe matrícula interna com segurança.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="arquivos">
+        <h2>Arquivos Gerados</h2>
+        <p>Os arquivos finais são salvos dentro da pasta de saída escolhida. A estrutura interna depende da rotina executada, por exemplo HP, HQ, ZDP1, ZDP2, CTPS ou Ficha Financeira.</p>
+        <div class="card ok">
+          <p>Ao terminar com sucesso, o app limpa o checkpoint. Se a aba Retomada continuar mostrando checkpoint depois de uma execução concluída, recarregue a aba e confira se existe arquivo antigo em <code>%APPDATA%\SapAutomacao</code>.</p>
+        </div>
+      </section>
+
+      <section id="exe">
+        <h2>Geração do EXE</h2>
+        <h3>Arquivo único</h3>
+        <p>Use quando precisar distribuir um único arquivo:</p>
+        <pre>cd /d "C:\Users\2160048370\Downloads\Automações\Sap"
+build_exe.bat</pre>
+        <p>Resultado:</p>
+        <pre>dist\SapAutomacao.exe</pre>
+
+        <h3>Pasta rápida</h3>
+        <p>Use quando a prioridade for abrir mais rápido:</p>
+        <pre>cd /d "C:\Users\2160048370\Downloads\Automações\Sap"
+build_exe_pasta_rapido.bat</pre>
+        <p>Resultado:</p>
+        <pre>dist\SapAutomacao\SapAutomacao.exe</pre>
+        <p>Neste modo, mantenha a pasta <code>dist\SapAutomacao</code> inteira. Não copie apenas o executável.</p>
+      </section>
+
+      <section id="problemas">
+        <h2>Problemas Comuns</h2>
+        <table>
+          <thead>
+            <tr><th>Problema</th><th>O que verificar</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>EXE demora para abrir</td>
+              <td>Use o modo pasta rápida. O modo arquivo único precisa extrair dependências antes de abrir.</td>
+            </tr>
+            <tr>
+              <td>Erro de conexão SAP</td>
+              <td>Confirme o nome da conexão SAP, SAP GUI aberto/instalado e scripting habilitado.</td>
+            </tr>
+            <tr>
+              <td>Retomada não aparece</td>
+              <td>Verifique se existe checkpoint em <code>%APPDATA%\SapAutomacao</code> ou na pasta de saída.</td>
+            </tr>
+            <tr>
+              <td>Senha pedida novamente</td>
+              <td>É esperado. A senha não é salva no config por segurança.</td>
+            </tr>
+            <tr>
+              <td>Popup de segurança SAP</td>
+              <td>O app tenta identificar e liberar automaticamente, mas a permissão do SAP GUI precisa permitir scripting.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <div class="footer">
+        Manual local do projeto SAP Automação. Última revisão: 2026-05-28.
+      </div>
+    </main>
+  </div>
+</body>
+</html>

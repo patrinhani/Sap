@@ -50,13 +50,24 @@ def execute(session, matriculas, periodo, config, output_base_path, progress_que
                 else:
                     balde_zdp1.append(matricula)
 
-            # Executa os trabalhadores com os baldes de matrículas
-            run_zct1_worker(session, balde_zct1, mes, ano, output_base_path, progress_queue)
+            sucesso, mensagem = run_zct1_worker(session, balde_zct1, mes, ano, output_base_path, progress_queue)
+            if not sucesso:
+                return False, mensagem
             keep_alive(session)
-            run_zct2_worker(session, balde_zct2, mes, ano, output_base_path, progress_queue)
+            sucesso, mensagem = run_zct2_worker(session, balde_zct2, mes, ano, output_base_path, progress_queue)
+            if not sucesso:
+                return False, mensagem
             keep_alive(session)
-            # Para o ZDP1, passamos o período original da UI, pois ele sabe como iterar
-            run_zdp1_worker(session, balde_zdp1, {"inicio": f"{mes}/{ano}", "fim": f"{mes}/{ano}"}, config, output_base_path, progress_queue)
+            sucesso, mensagem = run_zdp1_worker(
+                session,
+                balde_zdp1,
+                {"inicio": f"{mes}/{ano}", "fim": f"{mes}/{ano}"},
+                config,
+                output_base_path,
+                progress_queue,
+            )
+            if not sucesso:
+                return False, mensagem
 
         return True, "Orquestrador ZDP1/ZCT finalizado com sucesso."
     except Exception as e:

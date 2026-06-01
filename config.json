@@ -1,1 +1,8 @@
-{"mes_inicio": "07", "ano_inicio": "2021", "mes_fim": "05", "ano_fim": "2026", "theme": "darkly"}
+{
+  "mes_inicio": "01",
+  "ano_inicio": "2025",
+  "mes_fim": "12",
+  "ano_fim": "2025",
+  "tipo_ficha": "HTML (Layout Padrão)",
+  "output_base_path": "C:/Users/2160048370/Downloads"
+}

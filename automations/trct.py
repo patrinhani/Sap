@@ -78,6 +78,10 @@ def execute(session, matriculas, periodo, config, output_base_path, progress_que
         for i, matricula in enumerate(matriculas_validas):
             task_id = f"TRCT - {matricula}"
             
+            if progress_queue and hasattr(progress_queue, "should_skip") and progress_queue.should_skip(task_id):
+                progress_queue.put({"type": "task_update", "task_id": task_id, "status": "✅ Concluído (checkpoint)"})
+                continue
+
             if progress_queue:
                 progress_queue.put({"type": "status", "detalhe": f"Processando Matrícula {i+1}/{len(matriculas_validas)}: {matricula}"})
                 progress_queue.put({"type": "task_update", "task_id": task_id, "status": "Executando..."})

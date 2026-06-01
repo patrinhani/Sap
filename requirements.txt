@@ -1,0 +1,5 @@
+pandas
+pyautogui
+PyQt6
+pywin32
+ttkbootstrap

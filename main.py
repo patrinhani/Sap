@@ -1,90 +1,137 @@
-import ttkbootstrap as ttk
-from ttkbootstrap.constants import *
-from ttkbootstrap.widgets.scrolled import ScrolledFrame
-from ttkbootstrap.widgets import Meter
-from tkinter import filedialog, messagebox, VERTICAL, W, E, S, N, LEFT, RIGHT, BOTH, YES, BOTTOM, X, CENTER, WORD, END, SUNKEN
-import os
+import contextlib
+import importlib
 import json
-from datetime import datetime
-import ctypes
-import threading
-import queue
+import os
+import re
 import sys
 import time
+from datetime import datetime
 
-# --- Funções de backend, imports, dicionários e constantes ---
+from PyQt6.QtCore import Qt, QThread, QTimer, pyqtSignal
+from PyQt6.QtGui import QBrush, QColor, QFont, QIcon
+from PyQt6.QtWidgets import (
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QFileDialog,
+    QFrame,
+    QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QInputDialog,
+    QLabel,
+    QLineEdit,
+    QMainWindow,
+    QMessageBox,
+    QPlainTextEdit,
+    QProgressBar,
+    QPushButton,
+    QSizePolicy,
+    QStackedWidget,
+    QStyle,
+    QTabWidget,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
+
+from icon_utils import ensure_app_icon
+
+
+def app_base_path():
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
 
 def resource_path(relative_path):
     try:
         base_path = sys._MEIPASS
     except Exception:
-        base_path = os.path.abspath(".")
+        base_path = app_base_path()
     return os.path.join(base_path, relative_path)
 
-# --- Mocks ---
-try:
-    from automations.sap_utils import connect_to_sap
-    from automations.hp_completo import execute as run_hp_completo
-    from automations.hq_completo import execute as run_hq_completo
-    from automations.decimo_terceiro import execute as run_decimo_terceiro
-    from automations.plrs import execute as run_plrs
-    from automations.ctps_digital import execute as run_ctps_digital
-    from automations.ficha_financeira import execute as run_ficha_financeira
-    from automations.hp_individual import execute as run_hp_individual
-    from automations.hp13_1 import execute as run_hp13_1
-    from automations.hp13_2 import execute as run_hp13_2
-    from automations.hp_com import execute as run_hp_com 
-    from automations.zdp1 import execute as run_zdp1
-    from automations.zdp2 import execute as run_zdp2 
 
-except ImportError as e:
-    print(f"AVISO: Módulos de automação não encontrados. Usando mocks para: {e}")
-    def connect_to_sap(): return None
-    def mock_execute(*args, **kwargs):
-        q = kwargs.get('progress_queue')
-        if q:
-            for i in range(5):
-                time.sleep(0.5)
-                q.put({"type": "status", "detalhe": f"Simulando tarefa {i+1}/5..."})
-        return True, "Simulação concluída."
+def app_config_path(filename):
+    base_path = app_base_path()
+    if os.access(base_path, os.W_OK):
+        return os.path.join(base_path, filename)
 
-    if 'run_hp_completo' not in locals(): run_hp_completo = mock_execute
-    if 'run_hq_completo' not in locals(): run_hq_completo = mock_execute
-    if 'run_decimo_terceiro' not in locals(): run_decimo_terceiro = mock_execute
-    if 'run_plrs' not in locals(): run_plrs = mock_execute
-    if 'run_ctps_digital' not in locals(): run_ctps_digital = mock_execute 
-    if 'run_ficha_financeira' not in locals(): run_ficha_financeira = mock_execute
-    if 'run_hp_individual' not in locals(): run_hp_individual = mock_execute
-    if 'run_hp13_1' not in locals(): run_hp13_1 = mock_execute
-    if 'run_hp13_2' not in locals(): run_hp13_2 = mock_execute
-    if 'run_hp_com' not in locals(): run_hp_com = mock_execute
-    if 'run_zdp1' not in locals(): run_zdp1 = mock_execute
-    if 'run_zdp2' not in locals(): run_zdp2 = mock_execute
+    return app_data_path(filename)
+
+
+def app_data_path(filename):
+    appdata = os.environ.get("APPDATA") or os.path.expanduser("~")
+    return os.path.join(appdata, "SapAutomacao", filename)
+
+
+def app_icon_path():
+    icon_path = resource_path(os.path.join("assets", "gcb_icone.ico"))
+    if os.path.exists(icon_path):
+        return icon_path
+    return ensure_app_icon(app_base_path())
+
+
+MOCK_MODE = False
+
+
+def sap_util(function_name):
+    module = importlib.import_module("automations.sap_utils")
+    return getattr(module, function_name)
+
+
+def connect_to_sap(*args, **kwargs):
+    return sap_util("connect_to_sap")(*args, **kwargs)
+
+
+def keep_alive(*args, **kwargs):
+    return sap_util("keep_alive")(*args, **kwargs)
+
+
+def iniciar_monitor_seguranca_sapgui(*args, **kwargs):
+    return sap_util("iniciar_monitor_seguranca_sapgui")(*args, **kwargs)
+
+
+def parar_monitor_seguranca_sapgui(*args, **kwargs):
+    return sap_util("parar_monitor_seguranca_sapgui")(*args, **kwargs)
+
+
+def lazy_execute(module_name):
+    def execute(*args, **kwargs):
+        module = importlib.import_module(f"automations.{module_name}")
+        return module.execute(*args, **kwargs)
+
+    return execute
+
 
 PROCESS_MAP = {
-    "HP Completo": run_hp_completo,
-    "HQ Completo": run_hq_completo, 
-    "13º Salário": run_decimo_terceiro,
-    "PLRs": run_plrs,
-    "CTPS Digital": run_ctps_digital, 
-    "Ficha Financeira": run_ficha_financeira,
-    "HP Individual (Off-Cycle)": run_hp_individual,
-    "1ª Parcela 13º": run_hp13_1,
-    "2ª Parcela 13º": run_hp13_2,
-    "HP-COM": run_hp_com,
-    "ZDP1": run_zdp1,
-    "ZDP2": run_zdp2,
+    "HP Holerite": lazy_execute("hp"),
+    "HQ Holerite": lazy_execute("hq"),
+    "ZDP1 Holerite": lazy_execute("zdp1_worker"),
+    "13º Salário": lazy_execute("decimo_terceiro"),
+    "PLRs": lazy_execute("plrs"),
+    "CTPS Digital": lazy_execute("ctps_digital"),
+    "Ficha Financeira": lazy_execute("ficha_financeira"),
+    "HP Individual (Off-Cycle)": lazy_execute("hp_individual"),
+    "1ª Parcela 13º": lazy_execute("hp13_1"),
+    "2ª Parcela 13º": lazy_execute("hp13_2"),
+    "HP-COM": lazy_execute("hp_com"),
+    "ZDP1": lazy_execute("zdp1"),
+    "ZDP2": lazy_execute("zdp2"),
 }
 
 SEQUENCES = {
     "HP": ["HP Completo"],
-    "HQ": ["HQ Completo"], 
+    "HQ": ["HQ Completo"],
+    "HP Completo": ["HP Holerite", "ZDP1 Holerite", "HP-COM"],
+    "HQ Completo": ["HQ Holerite", "ZDP2"],
     "HP+HQ": ["HP Completo", "HQ Completo"],
-    "13º Salário Completo": ["13º Salário"], 
-    "PLRs Normal": ["PLRs"], 
-    "Ficha Financeira": ["Ficha Financeira"], 
-    "CTPS Digital": ["CTPS Digital"], 
-    "HP Individual": ["HP Individual (Off-Cycle)"], 
+    "13º Salário Completo": ["13º Salário"],
+    "PLRs Normal": ["PLRs"],
+    "Ficha Financeira": ["Ficha Financeira"],
+    "CTPS Digital": ["CTPS Digital"],
+    "HP Individual": ["HP Individual (Off-Cycle)"],
     "1ª Parcela 13º": ["1ª Parcela 13º"],
     "2ª Parcela 13º": ["2ª Parcela 13º"],
     "HP-COM": ["HP-COM"],
@@ -92,515 +139,1665 @@ SEQUENCES = {
     "ZDP2": ["ZDP2"],
     "Massa Completa de Holerites": ["HP Completo", "HQ Completo", "13º Salário", "PLRs"],
     "Ficha + CTPS": ["Ficha Financeira", "CTPS Digital"],
-    "EXECUTAR TUDO": ["Massa Completa de Holerites", "Ficha Financeira", "CTPS Digital", "HP Individual (Off-Cycle)"],
+    "EXECUTAR TUDO": [
+        "Massa Completa de Holerites",
+        "Ficha Financeira",
+        "CTPS Digital",
+        "HP Individual (Off-Cycle)",
+    ],
 }
 
-CONFIG_FILE = resource_path("config.json")
-SIDEBAR_BUTTONS = ["AÇÕES", "STATUS"]
+PROCESS_GROUPS = [
+    (
+        "Holerites",
+        [
+            ("HP Completo", "HP"),
+            ("HQ Completo", "HQ"),
+            ("HP + HQ", "HP+HQ"),
+            ("HP-COM", "HP-COM"),
+            ("Massa Completa", "Massa Completa de Holerites"),
+        ],
+    ),
+    (
+        "Anuais",
+        [
+            ("13º Salário", "13º Salário Completo"),
+            ("1ª Parcela 13º", "1ª Parcela 13º"),
+            ("2ª Parcela 13º", "2ª Parcela 13º"),
+            ("PLRs", "PLRs Normal"),
+        ],
+    ),
+    (
+        "Documentos",
+        [
+            ("Ficha Financeira", "Ficha Financeira"),
+            ("CTPS Digital", "CTPS Digital"),
+            ("Ficha + CTPS", "Ficha + CTPS"),
+            ("HP Individual", "HP Individual"),
+            ("ZDP1", "ZDP1"),
+            ("ZDP2", "ZDP2"),
+        ],
+    ),
+]
 
-class AppSAP:
-    def __init__(self, master):
-        self.app = master
-        self.app.title("Painel de Automação SAP")
-        self.app.state('zoomed') 
-        self.app.minsize(width=900, height=700)
-        self.app.protocol("WM_DELETE_WINDOW", self.on_closing)
-        self.app.attributes("-alpha", 0) 
+MAX_TENTATIVAS_PROCESSO = 4
+RETRY_DELAY_SECONDS = 60
+CHECKPOINT_FILE_NAME = ".sap_automacao_checkpoint.json"
+PROCESSOS_RETOMADA_POR_MATRICULA = {
+    "CTPS Digital",
+    "Ficha Financeira",
+    "HP Individual (Off-Cycle)",
+    "HP-COM",
+    "1ª Parcela 13º",
+    "2ª Parcela 13º",
+}
+
+CONFIG_FILE = app_config_path("config.json")
+
+
+def checkpoint_path(output_base_path):
+    return os.path.join(output_base_path, CHECKPOINT_FILE_NAME)
+
+
+def global_checkpoint_path():
+    return app_data_path(CHECKPOINT_FILE_NAME)
+
+
+def read_checkpoint_file(path):
+    if not path or not os.path.exists(path):
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as file:
+            data = json.load(file)
+        if isinstance(data, dict):
+            data["_checkpoint_file"] = path
+            return data
+    except Exception:
+        return None
+    return None
+
+
+def checkpoint_updated_at(checkpoint):
+    try:
+        return datetime.fromisoformat(checkpoint.get("updated_at", ""))
+    except Exception:
+        return datetime.min
+
+
+def load_checkpoint(output_base_path=None):
+    candidates = []
+
+    global_checkpoint = read_checkpoint_file(global_checkpoint_path())
+    if global_checkpoint:
+        candidates.append(global_checkpoint)
+
+    if output_base_path:
+        local_checkpoint = read_checkpoint_file(checkpoint_path(output_base_path))
+        if local_checkpoint:
+            candidates.append(local_checkpoint)
+
+    if not candidates:
+        return None
+
+    return max(candidates, key=checkpoint_updated_at)
+
+
+def save_checkpoint(output_base_path, data):
+    data = dict(data)
+    data["output_base_path"] = output_base_path
+
+    targets = [global_checkpoint_path()]
+    if output_base_path:
+        targets.append(checkpoint_path(output_base_path))
+
+    for path in dict.fromkeys(targets):
         try:
-            ctypes.windll.shcore.SetProcessDpiAwareness(1)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as file:
+                json.dump(data, file, ensure_ascii=False, indent=2)
         except Exception:
             pass
 
-        self.output_base_path = ""
-        self.progress_queue = queue.Queue()
-        self.automation_thread = None
-        self.all_buttons = []
-        self.sidebar_buttons = {}
-        self.progress_list_items = {}
-        self.vapor_clicks, self.solar_clicks = 0, 0
-        self.last_click_time = 0
 
-        self.path_entry_var = ttk.StringVar(value="Nenhuma pasta selecionada")
-        self.theme_switch_var = ttk.BooleanVar()
-        self.geral_status_var = ttk.StringVar(value="Pronto para iniciar.")
-        self.detalhe_status_var = ttk.StringVar(value="Aguardando uma nova tarefa...")
-        self.debug_label_var = ttk.StringVar()
-        
-        # Variável para o tipo de saída da Ficha Financeira
-        self.tipo_ficha_var = ttk.StringVar(value="HTML (Layout Padrão)")
+def clear_checkpoint(output_base_path=None):
+    global_checkpoint = read_checkpoint_file(global_checkpoint_path())
+    checkpoint_output_path = output_base_path
+    if global_checkpoint and global_checkpoint.get("output_base_path"):
+        checkpoint_output_path = global_checkpoint.get("output_base_path")
 
-        self._init_combobox_vars()
-        self._create_widgets()
-        
-        self.load_config()
-        self.on_text_focus_out(None)
-        self.show_frame("AÇÕES")
-        self.fade_in()
+    paths = [global_checkpoint_path()]
+    if checkpoint_output_path:
+        paths.append(checkpoint_path(checkpoint_output_path))
+    if output_base_path and output_base_path != checkpoint_output_path:
+        paths.append(checkpoint_path(output_base_path))
 
-    def _init_combobox_vars(self):
-        now = datetime.now()
-        current_year = now.year
-        self.years = [str(i) for i in range(current_year - 5, current_year + 5)]
-        self.months = [f"{i:02d}" for i in range(1, 13)]
-        
-        self.combo_mes_inicio = ttk.StringVar(value=f"{now.month:02d}")
-        self.combo_ano_inicio = ttk.StringVar(value=str(now.year))
-        self.combo_mes_fim = ttk.StringVar(value=f"{now.month:02d}")
-        self.combo_ano_fim = ttk.StringVar(value=str(now.year))
+    for path in dict.fromkeys(paths):
+        try:
+            if os.path.exists(path):
+                os.remove(path)
+        except Exception:
+            pass
 
-    def _create_widgets(self):
-        container = ttk.Frame(self.app)
-        container.pack(fill=BOTH, expand=YES)
-        
-        self.main_frame = ttk.Frame(container, padding=0)
-        self.main_frame.pack(fill=BOTH, expand=YES)
-        self.main_frame.grid_columnconfigure(1, weight=1)
-        self.main_frame.grid_rowconfigure(0, weight=1)
 
-        self._create_sidebar(self.main_frame)
-        
-        self.content_frame = ttk.Frame(self.main_frame, padding=(20, 10, 20, 20))
-        self.content_frame.grid(row=0, column=1, sticky="nsew")
-        self.content_frame.grid_columnconfigure(0, weight=1)
-        self.content_frame.grid_rowconfigure(1, weight=1)
-        
-        self.frames = {}
-        self.frames["AÇÕES"] = self._create_actions_page(self.content_frame)
-        self.frames["STATUS"] = self._create_status_page(self.content_frame)
-        self.frames["CONFIGURAÇÕES"] = self._create_config_page(self.content_frame)
-        
-        self._create_status_bar(container)
+def expandir_sequencia(sequence_name):
+    pendentes = list(SEQUENCES.get(sequence_name, []))
+    finais = []
 
-    def _create_status_bar(self, parent):
-        status_bar = ttk.Frame(parent, relief=SUNKEN, padding=(5, 2))
-        status_bar.pack(side=BOTTOM, fill=X)
-        ttk.Label(status_bar, textvariable=self.geral_status_var, bootstyle="info", font=("", 10, "bold")).pack(side=LEFT, padx=(5, 10))
-        ttk.Label(status_bar, textvariable=self.detalhe_status_var, bootstyle="secondary").pack(side=LEFT, padx=10)
-        ttk.Label(status_bar, textvariable=self.debug_label_var, bootstyle="secondary", font=("", 8)).pack(side=RIGHT, padx=5)
-        self.app.bind("<Configure>", self.on_resize)
-        self.app.after(100, self.on_resize, None) 
+    while pendentes:
+        tarefa = pendentes.pop(0)
+        if tarefa in SEQUENCES and tarefa not in PROCESS_MAP:
+            pendentes[0:0] = SEQUENCES.get(tarefa, [])
+        else:
+            finais.append(tarefa)
 
-    def show_frame(self, page_name):
-        frame = self.frames.get(page_name)
-        if frame:
-            for f in self.frames.values():
-                f.grid_remove()
-            frame.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
-            for name, btn in self.sidebar_buttons.items():
-                if name == page_name:
-                    btn.configure(bootstyle="primary")
+    return list(dict.fromkeys(finais))
+
+
+class ProgressBridge:
+    def __init__(self, signal):
+        self.signal = signal
+
+    def put(self, msg):
+        self.signal.emit(msg)
+
+    def log(self, text):
+        text = text.rstrip()
+        if text:
+            self.put({"type": "log", "msg": text})
+
+
+class LogWriter:
+    def __init__(self, bridge):
+        self.bridge = bridge
+
+    def write(self, text):
+        for line in text.splitlines():
+            if line.strip():
+                self.bridge.log(line)
+
+    def flush(self):
+        pass
+
+
+class ResumeProgressTracker:
+    def __init__(self, queue_destino, matriculas, state=None, on_update=None):
+        state = state or {}
+        self.queue_destino = queue_destino
+        self.matriculas_originais = list(matriculas)
+        self.matriculas_set = set(self.matriculas_originais)
+        self.completed_task_ids = set(state.get("completed_task_ids", []))
+        self.current_task_id = state.get("current_task_id")
+        self.on_update = on_update
+
+    def put(self, msg):
+        changed = False
+        if isinstance(msg, dict):
+            tipo = msg.get("type")
+            if tipo == "task_update":
+                task_id = str(msg.get("task_id", "")).strip()
+                status = str(msg.get("status", "")).lower()
+                if task_id:
+                    self.current_task_id = task_id
+                    changed = True
+                    if "concluido" in status or "concluído" in status:
+                        self.completed_task_ids.add(task_id)
+                        changed = True
+            elif tipo == "task_list":
+                self.current_task_id = None
+                changed = True
+
+        self.queue_destino.put(msg)
+        if changed and self.on_update is not None:
+            self.on_update(self.snapshot())
+
+    def snapshot(self):
+        return {
+            "completed_task_ids": sorted(self.completed_task_ids),
+            "current_task_id": self.current_task_id,
+        }
+
+    def should_skip(self, task_id):
+        return str(task_id).strip() in self.completed_task_ids
+
+    def matriculas_pendentes(self):
+        concluidas = self.completed_task_ids & self.matriculas_set
+        if not concluidas:
+            return list(self.matriculas_originais)
+        return [matricula for matricula in self.matriculas_originais if matricula not in concluidas]
+
+    def resumo_retomada(self):
+        concluidas = len(self.completed_task_ids & self.matriculas_set)
+        total = len(self.matriculas_originais)
+        if self.current_task_id:
+            return f"último item detectado: {self.current_task_id}; matrículas concluídas: {concluidas}/{total}"
+        return f"matrículas concluídas: {concluidas}/{total}"
+
+
+class AutomationWorker(QThread):
+    progress = pyqtSignal(dict)
+    done = pyqtSignal(bool, str)
+
+    def __init__(self, sequence_name, matriculas, periodo, config, output_base_path, sap_password, resume_checkpoint=None):
+        super().__init__()
+        self.sequence_name = sequence_name
+        self.matriculas = list(matriculas)
+        self.periodo = dict(periodo)
+        self.config = dict(config)
+        self.output_base_path = output_base_path
+        self.sap_password = sap_password
+        self.resume_checkpoint = resume_checkpoint or {}
+        self.completed_processes = set(self.resume_checkpoint.get("completed_processes", []))
+        self.current_process_state = self.resume_checkpoint.get("current_process_state", {})
+        self.current_process = self.resume_checkpoint.get("current_process")
+        self.tarefas = []
+        self.bridge = ProgressBridge(self.progress)
+
+    def run(self):
+        pythoncom = None
+        stop_event = None
+        monitor = None
+
+        try:
+            try:
+                import pythoncom as pythoncom_mod
+                pythoncom = pythoncom_mod
+                pythoncom.CoInitialize()
+            except Exception:
+                pythoncom = None
+
+            stop_event, monitor = iniciar_monitor_seguranca_sapgui()
+            writer = LogWriter(self.bridge)
+
+            with contextlib.redirect_stdout(writer), contextlib.redirect_stderr(writer):
+                if not self.sap_password:
+                    raise ValueError("Senha SAP não informada. Ela é necessária para login e reconexão automática.")
+                self.bridge.put({"type": "status", "geral": "Conectando ao SAP", "detalhe": ""})
+                session = connect_to_sap(self.sap_password, levantar_erros=True)
+
+                if session is None and not MOCK_MODE:
+                    raise ConnectionError("Falha na conexão com o SAP. Verifique se o SAP GUI está aberto e logado.")
+
+                self.tarefas = expandir_sequencia(self.sequence_name)
+                if not self.tarefas:
+                    raise ValueError(f"Sequência desconhecida: {self.sequence_name}")
+
+                total = len(self.tarefas)
+                self._save_checkpoint()
+                for indice, processo_nome in enumerate(self.tarefas, start=1):
+                    if processo_nome in self.completed_processes:
+                        self.bridge.put({
+                            "type": "status",
+                            "geral": f"Etapa {indice}/{total}: {processo_nome}",
+                            "detalhe": "Já concluída no checkpoint. Pulando.",
+                            "progresso_geral": ((indice - 1) / total) * 100,
+                        })
+                        continue
+
+                    self.current_process = processo_nome
+                    self.current_process_state = {}
+                    self._save_checkpoint()
+                    progresso = ((indice - 1) / total) * 100
+                    self.bridge.put({
+                        "type": "status",
+                        "geral": f"Etapa {indice}/{total}: {processo_nome}",
+                        "detalhe": "Iniciando",
+                        "progresso_geral": progresso,
+                    })
+
+                    funcao = PROCESS_MAP.get(processo_nome)
+                    if not funcao:
+                        self.bridge.log(f"AVISO: Processo '{processo_nome}' não encontrado.")
+                        continue
+
+                    session = self._executar_processo_com_retomada(processo_nome, funcao, session)
+                    self.completed_processes.add(processo_nome)
+                    self.current_process_state = {}
+                    self._save_checkpoint()
+                    try:
+                        keep_alive(session)
+                    except Exception:
+                        pass
+
+                self.bridge.put({"type": "status", "geral": "Concluído", "detalhe": ""})
+                self.bridge.put({"type": "success", "msg": f"Sequência '{self.sequence_name}' concluída."})
+                clear_checkpoint(self.output_base_path)
+                self.done.emit(True, f"Sequência '{self.sequence_name}' concluída.")
+        except Exception as e:
+            self.bridge.put({"type": "error", "msg": str(e)})
+            self.done.emit(False, str(e))
+        finally:
+            parar_monitor_seguranca_sapgui(stop_event, monitor)
+            if pythoncom is not None:
+                try:
+                    pythoncom.CoUninitialize()
+                except Exception:
+                    pass
+
+    def _executar_processo_com_retomada(self, processo_nome, funcao, session):
+        tracker_state = self.current_process_state if self.current_process == processo_nome else {}
+        tracker = ResumeProgressTracker(
+            self.bridge,
+            self.matriculas,
+            state=tracker_state,
+            on_update=self._update_current_process_state,
+        )
+        ultima_mensagem = ""
+
+        for tentativa in range(1, MAX_TENTATIVAS_PROCESSO + 1):
+            try:
+                if tentativa > 1:
+                    self._wait_before_retry(processo_nome, tentativa, tracker)
+                    self.bridge.put({
+                        "type": "status",
+                        "geral": f"Reconectando SAP para {processo_nome}",
+                        "detalhe": f"Tentativa {tentativa}/{MAX_TENTATIVAS_PROCESSO}: abrindo nova sessão e refazendo login.",
+                    })
+                    session = connect_to_sap(
+                        self.sap_password,
+                        levantar_erros=True,
+                        forcar_nova_sessao=True,
+                    )
+
+                if processo_nome in PROCESSOS_RETOMADA_POR_MATRICULA:
+                    matriculas_tentativa = tracker.matriculas_pendentes()
+                    if not matriculas_tentativa:
+                        self.bridge.put({
+                            "type": "status",
+                            "detalhe": f"{processo_nome}: itens concluídos detectados. Avançando.",
+                        })
+                        return session
                 else:
-                    btn.configure(bootstyle="secondary-outline")
-    
-    def _create_sidebar(self, parent):
-        sidebar = ttk.Frame(parent, width=250, padding=10, bootstyle="dark")
-        sidebar.grid(row=0, column=0, sticky="nsew")
-        sidebar.grid_columnconfigure(0, weight=1)
+                    matriculas_tentativa = list(self.matriculas)
 
-        title_label = ttk.Label(sidebar, text="SAP Automação", font=("", 18, "bold"), bootstyle="primary")
-        title_label.grid(row=0, column=0, sticky="ew", pady=(10, 30))
-        title_label.bind("<Button-1>", self.vapor_easter_egg_check)
+                sucesso, mensagem = funcao(
+                    session,
+                    matriculas_tentativa,
+                    self.periodo,
+                    self.config,
+                    self.output_base_path,
+                    progress_queue=tracker,
+                )
+                if sucesso:
+                    return session
 
-        for i, name in enumerate(SIDEBAR_BUTTONS):
-            btn = ttk.Button(sidebar, text=name, command=lambda n=name: self.show_frame(n), bootstyle="secondary-outline", padding=15, cursor="hand2")
-            btn.grid(row=i + 1, column=0, sticky="ew", pady=5)
-            self.sidebar_buttons[name] = btn
+                ultima_mensagem = mensagem
+                raise RuntimeError(mensagem)
+            except Exception as e:
+                ultima_mensagem = str(e)
+                self._update_current_process_state(tracker.snapshot())
+                if tentativa >= MAX_TENTATIVAS_PROCESSO:
+                    raise RuntimeError(f"Erro em '{processo_nome}' após retomada automática: {ultima_mensagem}") from e
 
-        sidebar.grid_rowconfigure(len(SIDEBAR_BUTTONS) + 1, weight=1)
-        theme_switch = ttk.Checkbutton(sidebar, text="Tema Claro/Escuro", variable=self.theme_switch_var, command=self.toggle_theme, bootstyle="success-round-toggle")
-        theme_switch.grid(row=len(SIDEBAR_BUTTONS) + 2, column=0, sticky="ew", pady=(20, 10))
+                self.bridge.put({
+                    "type": "status",
+                    "geral": f"Falha em {processo_nome}",
+                    "detalhe": f"Retomada automática preparada: {tracker.resumo_retomada()}",
+                })
 
-    def _create_actions_page(self, parent):
-        page_frame = ttk.Frame(parent, padding=10)
-        page_frame.grid_columnconfigure(0, weight=1)
-        page_frame.grid_rowconfigure(3, weight=1)
-        
-        ttk.Label(page_frame, text="Controle de Execução", font=("", 18, "bold"), bootstyle="primary").grid(row=0, column=0, sticky="w", pady=(0, 20))
+        return session
 
-        path_frame = ttk.Labelframe(page_frame, text=" 📂 1. Pasta de Destino ", padding=15)
-        path_frame.grid(row=1, column=0, sticky="ew", pady=10) 
-        ttk.Button(path_frame, text="Selecionar Pasta...", command=self.select_output_folder, bootstyle="info").pack(side=LEFT, padx=(0, 10))
-        ttk.Entry(path_frame, textvariable=self.path_entry_var, state="readonly").pack(side=LEFT, fill=X, expand=YES)
-        
-        input_details_frame = ttk.Frame(page_frame)
-        input_details_frame.grid(row=2, column=0, sticky="ew", pady=10)
-        input_details_frame.grid_columnconfigure(0, weight=1)
-        input_details_frame.grid_columnconfigure(1, weight=1)
+    def _wait_before_retry(self, processo_nome, tentativa, tracker):
+        remaining = RETRY_DELAY_SECONDS
+        while remaining > 0:
+            self.bridge.put({
+                "type": "status",
+                "geral": f"Aguardando retomada de {processo_nome}",
+                "detalhe": (
+                    f"Nova tentativa {tentativa}/{MAX_TENTATIVAS_PROCESSO} em {remaining}s. "
+                    f"{tracker.resumo_retomada()}"
+                ),
+            })
+            sleep_for = min(5, remaining)
+            time.sleep(sleep_for)
+            remaining -= sleep_for
 
-        periodo_frame = ttk.Labelframe(input_details_frame, text=" 🗓️ 2. Período de Execução ", padding=15)
-        periodo_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 10)) 
-        periodo_frame.grid_columnconfigure((1, 2, 4, 5), weight=1)
-        self._create_periodo_widgets(periodo_frame)
+    def _update_current_process_state(self, state):
+        self.current_process_state = dict(state)
+        self._save_checkpoint()
 
-        matriculas_frame = ttk.Labelframe(input_details_frame, text=" 👤 3. Matrículas ", padding=15)
-        matriculas_frame.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
-        matriculas_frame.grid_rowconfigure(0, weight=1) 
-        matriculas_frame.grid_columnconfigure(0, weight=1)
-        
-        self.textbox_matriculas = ttk.Text(matriculas_frame, font=("Consolas", 11), wrap=WORD, height=4) 
-        self.textbox_matriculas.grid(row=0, column=0, sticky="nsew")
-        scrollbar = ttk.Scrollbar(matriculas_frame, orient=VERTICAL, command=self.textbox_matriculas.yview)
-        scrollbar.grid(row=0, column=1, sticky="ns")
-        self.textbox_matriculas.config(yscrollcommand=scrollbar.set)
-        self.textbox_matriculas.bind("<FocusIn>", self.on_text_focus_in)
-        self.textbox_matriculas.bind("<FocusOut>", self.on_text_focus_out)
-        
-        notebook = ttk.Notebook(page_frame)
-        notebook.grid(row=3, column=0, sticky="nsew", pady=(10, 10)) 
-        
-        self._create_holerites_tab(notebook)
-        self._create_anuais_tab(notebook)
-        self._create_docs_tab(notebook)
+    def _save_checkpoint(self):
+        data = {
+            "version": 1,
+            "updated_at": datetime.now().isoformat(timespec="seconds"),
+            "sequence_name": self.sequence_name,
+            "periodo": self.periodo,
+            "config": self.config,
+            "matriculas": self.matriculas,
+            "tarefas": self.tarefas,
+            "completed_processes": sorted(self.completed_processes),
+            "current_process": self.current_process,
+            "current_process_state": self.current_process_state,
+        }
+        save_checkpoint(self.output_base_path, data)
 
-        massa_destaque_frame = ttk.Frame(page_frame)
-        massa_destaque_frame.grid(row=4, column=0, sticky="ew", pady=(10, 0)) 
-        massa_destaque_frame.grid_columnconfigure((0, 1), weight=1)
-        
-        btn_massa = ttk.Button(massa_destaque_frame, text="Massa Completa de Holerites", command=lambda: self.start_automation("Massa Completa de Holerites"), bootstyle="success")
-        btn_massa.grid(row=0, column=0, sticky="ew", padx=(0,5), ipady=10); self.all_buttons.append(btn_massa)
-        btn_tudo = ttk.Button(massa_destaque_frame, text="🔥 EXECUTAR TUDO", command=lambda: self.start_automation("EXECUTAR TUDO"), bootstyle="danger")
-        btn_tudo.grid(row=0, column=1, sticky="ew", padx=(5,0), ipady=10); self.all_buttons.append(btn_tudo)
-        
-        return page_frame
 
-    def _create_periodo_widgets(self, parent):
-        ttk.Label(parent, text="Início:").grid(row=0, column=0, padx=(0, 5))
-        ttk.Combobox(parent, state="readonly", values=self.months, textvariable=self.combo_mes_inicio).grid(row=0, column=1, padx=5, sticky="ew")
-        ttk.Combobox(parent, state="readonly", values=self.years, textvariable=self.combo_ano_inicio).grid(row=0, column=2, padx=5, sticky="ew")
-        ttk.Label(parent, text="Fim:").grid(row=0, column=3, padx=(15, 5))
-        ttk.Combobox(parent, state="readonly", values=self.months, textvariable=self.combo_mes_fim).grid(row=0, column=4, padx=5, sticky="ew")
-        ttk.Combobox(parent, state="readonly", values=self.years, textvariable=self.combo_ano_fim).grid(row=0, column=5, padx=5, sticky="ew")
-        
-    def _create_holerites_tab(self, notebook):
-        holerites_tab = ScrolledFrame(notebook, padding=10, autohide=True).container
-        notebook.add(holerites_tab, text="Holerites", sticky="nsew")
-        holerites_tab.columnconfigure(0, weight=1)
-        
-        btn = ttk.Button(holerites_tab, text="Executar HP (Completo)", command=lambda: self.start_automation("HP"), bootstyle="primary"); 
-        btn.grid(row=0, column=0, sticky="ew", pady=5); self.all_buttons.append(btn)
-        btn = ttk.Button(holerites_tab, text="Executar HQ (Completo)", command=lambda: self.start_automation("HQ"), bootstyle="primary"); 
-        btn.grid(row=1, column=0, sticky="ew", pady=5); self.all_buttons.append(btn)
-        btn = ttk.Button(holerites_tab, text="Executar HP + HQ", command=lambda: self.start_automation("HP+HQ"), bootstyle="info"); 
-        btn.grid(row=2, column=0, sticky="ew", pady=10); self.all_buttons.append(btn)
-        btn = ttk.Button(holerites_tab, text="Executar HP-COM (Avulso)", command=lambda: self.start_automation("HP-COM"), bootstyle="primary-outline"); 
-        btn.grid(row=3, column=0, sticky="ew", pady=5); self.all_buttons.append(btn)
-        
-    def _create_anuais_tab(self, notebook):
-        anuais_tab = ScrolledFrame(notebook, padding=10, autohide=True).container
-        notebook.add(anuais_tab, text="Anuais", sticky="nsew") 
-        anuais_tab.columnconfigure(0, weight=1)
-        
-        ttk.Label(anuais_tab, text="Décimo Terceiro:").grid(row=0, column=0, sticky="w", pady=(5, 0))
-        btn = ttk.Button(anuais_tab, text="13º Salário (Completo)", command=lambda: self.start_automation("13º Salário Completo"), bootstyle="success"); btn.grid(row=1, column=0, sticky="ew", pady=5); self.all_buttons.append(btn)
-        btn = ttk.Button(anuais_tab, text="1ª Parcela 13º", command=lambda: self.start_automation("1ª Parcela 13º"), bootstyle="primary-outline"); btn.grid(row=2, column=0, sticky="ew", pady=2); self.all_buttons.append(btn)
-        btn = ttk.Button(anuais_tab, text="2ª Parcela 13º", command=lambda: self.start_automation("2ª Parcela 13º"), bootstyle="primary-outline"); btn.grid(row=3, column=0, sticky="ew", pady=5); self.all_buttons.append(btn)
-        ttk.Separator(anuais_tab).grid(row=4, column=0, sticky="ew", pady=10)
-        ttk.Label(anuais_tab, text="PLRs (Folha Normal):").grid(row=5, column=0, sticky="w", pady=(5, 0))
-        btn = ttk.Button(anuais_tab, text="PLRs (Completo)", command=lambda: self.start_automation("PLRs Normal"), bootstyle="success"); btn.grid(row=6, column=0, sticky="ew", pady=5); self.all_buttons.append(btn)
-        
-    def _create_docs_tab(self, notebook):
-        docs_tab = ScrolledFrame(notebook, padding=10, autohide=True).container
-        notebook.add(docs_tab, text="Documentos", sticky="nsew")
-        docs_tab.columnconfigure(0, weight=1)
-        
-        # --- Grupo Ficha Financeira com Seleção ---
-        ff_frame = ttk.Frame(docs_tab)
-        ff_frame.grid(row=0, column=0, sticky="ew", pady=5)
-        ff_frame.columnconfigure(0, weight=1)
-        
-        btn = ttk.Button(ff_frame, text="Gerar Ficha Financeira", command=lambda: self.start_automation("Ficha Financeira"), bootstyle="primary")
-        btn.pack(side=LEFT, fill=X, expand=YES, padx=(0, 5))
-        self.all_buttons.append(btn)
-        
-        # Combobox para escolha do tipo
-        combo_ff = ttk.Combobox(ff_frame, textvariable=self.tipo_ficha_var, values=["HTML (Layout Padrão)", "PDF (Exportação Direta)"], state="readonly", width=22)
-        combo_ff.pack(side=LEFT)
-        
-        btn = ttk.Button(docs_tab, text="Gerar CTPS Digital", command=lambda: self.start_automation("CTPS Digital"), bootstyle="primary"); 
-        btn.grid(row=1, column=0, sticky="ew", pady=5); self.all_buttons.append(btn)
-        
-        btn = ttk.Button(docs_tab, text="Ficha Financeira + CTPS Digital (Em Sequência)", command=lambda: self.start_automation("Ficha + CTPS"), bootstyle="success-outline"); 
-        btn.grid(row=2, column=0, sticky="ew", pady=10); self.all_buttons.append(btn)
-        
-        btn = ttk.Button(docs_tab, text="Gerar Off-Cycle (Férias/Rescisão/PLR/Ajustes)", command=lambda: self.start_automation("HP Individual"), bootstyle="info"); 
-        btn.grid(row=3, column=0, sticky="ew", pady=5); self.all_buttons.append(btn)
-        
-        btn = ttk.Button(docs_tab, text="Gerar ZDP1", command=lambda: self.start_automation("ZDP1"), bootstyle="warning-outline"); 
-        btn.grid(row=4, column=0, sticky="ew", pady=(10, 5)); self.all_buttons.append(btn)
+class SapAutomationWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.worker = None
+        self.output_base_path = ""
+        self.progress_items = {}
+        self.action_buttons = []
+        self.form_buttons = []
+        self.nav_buttons = []
+        self.resume_nav_button = None
+        self.resume_pulse_on = False
+        self.resume_attention_timer = QTimer(self)
+        self.resume_attention_timer.setInterval(700)
+        self.resume_attention_timer.timeout.connect(self.toggle_resume_attention)
 
-        btn = ttk.Button(docs_tab, text="Gerar ZDP2", command=lambda: self.start_automation("ZDP2"), bootstyle="warning-outline"); 
-        btn.grid(row=5, column=0, sticky="ew", pady=5); self.all_buttons.append(btn)
+        now = datetime.now()
+        self.years = [str(i) for i in range(now.year - 5, now.year + 5)]
+        self.months = [f"{i:02d}" for i in range(1, 13)]
 
-    def _create_status_page(self, parent):
-        page_frame = ttk.Frame(parent, padding=10)
-        page_frame.grid_columnconfigure(0, weight=1)
-        page_frame.grid_rowconfigure(2, weight=1)
-        ttk.Label(page_frame, text="Status e Progresso da Automação", font=("", 18, "bold"), bootstyle="primary").grid(row=0, column=0, sticky="w", pady=(0, 20))
-        page_frame.bind("<Button-1>", self.solar_easter_egg_check)
-        
-        exec_frame = ttk.Labelframe(page_frame, text=" 📊 Progresso Geral ", padding=20)
-        exec_frame.grid(row=1, column=0, sticky="new", pady=(0, 20))
-        exec_frame.grid_columnconfigure(1, weight=1)
+        self.setWindowTitle("Painel de Automação SAP")
+        self.setMinimumSize(1180, 720)
+        icon_path = app_icon_path()
+        if icon_path:
+            self.setWindowIcon(QIcon(icon_path))
 
-        self.progress_meter = Meter(exec_frame, metersize=180, padding=10, amountused=0, metertype="semi", subtext="Progresso Geral", interactive=False, bootstyle="info", textright="%")
-        self.progress_meter.grid(row=0, column=0, rowspan=2, padx=(0, 20), sticky="ns")
-        ttk.Label(exec_frame, textvariable=self.geral_status_var, font=("", 14, "bold")).grid(row=0, column=1, sticky="nsw")
-        ttk.Label(exec_frame, textvariable=self.detalhe_status_var, bootstyle="secondary").grid(row=1, column=1, sticky="nsw")
+        self._build_ui()
+        self._apply_style()
+        self.load_config()
+        self.update_matricula_count()
+        self.update_resume_status()
 
-        progress_frame = ttk.Labelframe(page_frame, text=" 📜 Progresso Detalhado por Documento ", padding=15)
-        progress_frame.grid(row=2, column=0, sticky="nsew")
-        progress_frame.grid_rowconfigure(0, weight=1)
-        progress_frame.grid_columnconfigure(0, weight=1)
-        
-        columns = ('tarefa', 'status')
-        self.progress_list = ttk.Treeview(progress_frame, columns=columns, show='headings', bootstyle="primary")
-        self.progress_list.heading('tarefa', text='Documento')
-        self.progress_list.heading('status', text='Status')
-        self.progress_list.column('tarefa', width=350, anchor=W)
-        self.progress_list.column('status', width=120, anchor=CENTER)
-        self.progress_list.grid(row=0, column=0, sticky="nsew")
-        
-        scrollbar_list = ttk.Scrollbar(progress_frame, orient=VERTICAL, command=self.progress_list.yview)
-        scrollbar_list.grid(row=0, column=1, sticky="ns")
-        self.progress_list.config(yscrollcommand=scrollbar_list.set)
-        return page_frame
+    def standard_icon(self, name):
+        pixmap = getattr(QStyle.StandardPixmap, name, None)
+        if pixmap is None:
+            return QIcon()
+        return self.style().standardIcon(pixmap)
 
-    def _create_config_page(self, parent):
-        page_frame = ttk.Frame(parent, padding=10)
-        page_frame.grid_columnconfigure(0, weight=1)
-        ttk.Label(page_frame, text="Configurações Avançadas (Oculta)", font=("", 18, "bold"), bootstyle="primary").grid(row=0, column=0, sticky="w", pady=(0, 20))
-        config_box = ttk.Labelframe(page_frame, text=" ⚙️ Opções Globais ", padding=20)
-        config_box.grid(row=1, column=0, sticky="ew")
-        ttk.Label(config_box, text="Esta área está reservada para futuras configurações.").pack(anchor=W, pady=5)
-        return page_frame
-    
+    def _build_ui(self):
+        root = QWidget()
+        self.setCentralWidget(root)
+
+        main_layout = QHBoxLayout(root)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        sidebar = self._build_sidebar()
+        self.stack = QStackedWidget()
+        self.stack.addWidget(self._build_execution_page())
+        self.stack.addWidget(self._build_progress_page())
+        self.stack.addWidget(self._build_resume_page())
+        self.stack.addWidget(self._build_settings_page())
+
+        main_layout.addWidget(sidebar)
+        main_layout.addWidget(self.stack, 1)
+
+    def _build_sidebar(self):
+        sidebar = QFrame()
+        sidebar.setObjectName("sidebar")
+        sidebar.setFixedWidth(238)
+
+        layout = QVBoxLayout(sidebar)
+        layout.setContentsMargins(18, 22, 18, 18)
+        layout.setSpacing(10)
+
+        title = QLabel("SAP Automação")
+        title.setObjectName("sidebarTitle")
+        subtitle = QLabel("Operações de folha")
+        subtitle.setObjectName("sidebarSubtitle")
+
+        layout.addWidget(title)
+        layout.addWidget(subtitle)
+        layout.addSpacing(18)
+
+        nav_items = [
+            ("Execução", "SP_MediaPlay", 0),
+            ("Progresso", "SP_FileDialogDetailedView", 1),
+            ("Retomada", "SP_BrowserReload", 2),
+            ("Ajustes", "SP_FileDialogInfoView", 3),
+        ]
+
+        for label, icon_name, index in nav_items:
+            button = QPushButton(label)
+            button.setObjectName("navButton")
+            button.setCheckable(True)
+            button.setIcon(self.standard_icon(icon_name))
+            button.clicked.connect(lambda checked=False, idx=index: self.show_page(idx))
+            layout.addWidget(button)
+            self.nav_buttons.append(button)
+            if label == "Retomada":
+                self.resume_nav_button = button
+
+        layout.addStretch()
+
+        self.status_badge = QLabel("Pronto")
+        self.status_badge.setObjectName("statusBadge")
+        self.status_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.status_badge)
+
+        self.nav_buttons[0].setChecked(True)
+        return sidebar
+
+    def _build_execution_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(24, 22, 24, 22)
+        layout.setSpacing(16)
+
+        header = self._section_header("Controle de Execução", "Parâmetros e rotinas")
+        layout.addWidget(header)
+
+        top_grid = QGridLayout()
+        top_grid.setHorizontalSpacing(14)
+        top_grid.setVerticalSpacing(14)
+
+        output_panel = self._panel("Saída")
+        output_layout = QHBoxLayout(output_panel)
+        output_layout.setContentsMargins(14, 16, 14, 14)
+        output_layout.setSpacing(10)
+        self.output_input = QLineEdit()
+        self.output_input.setReadOnly(True)
+        self.output_input.setPlaceholderText("Nenhuma pasta selecionada")
+        choose_folder = QPushButton("Selecionar")
+        choose_folder.setIcon(self.standard_icon("SP_DirOpenIcon"))
+        choose_folder.clicked.connect(self.select_output_folder)
+        open_folder = QPushButton("Abrir")
+        open_folder.setObjectName("secondaryButton")
+        open_folder.setIcon(self.standard_icon("SP_DialogOpenButton"))
+        open_folder.clicked.connect(self.open_output_folder)
+        self.form_buttons.extend([choose_folder, open_folder])
+        output_layout.addWidget(self.output_input, 1)
+        output_layout.addWidget(choose_folder)
+        output_layout.addWidget(open_folder)
+
+        login_panel = self._panel("Login SAP")
+        login_layout = QHBoxLayout(login_panel)
+        login_layout.setContentsMargins(14, 16, 14, 14)
+        login_layout.setSpacing(10)
+        self.password_input = QLineEdit()
+        self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.password_input.setPlaceholderText("Senha SAP")
+        self.show_password_check = QCheckBox("Mostrar")
+        self.show_password_check.toggled.connect(self.toggle_password_visibility)
+        login_layout.addWidget(self.password_input, 1)
+        login_layout.addWidget(self.show_password_check)
+
+        period_panel = self._panel("Período")
+        period_layout = QGridLayout(period_panel)
+        period_layout.setContentsMargins(14, 16, 14, 14)
+        period_layout.setHorizontalSpacing(8)
+        period_layout.setVerticalSpacing(8)
+        self.start_month_combo = QComboBox()
+        self.start_year_combo = QComboBox()
+        self.end_month_combo = QComboBox()
+        self.end_year_combo = QComboBox()
+        for combo in (self.start_month_combo, self.end_month_combo):
+            combo.addItems(self.months)
+        for combo in (self.start_year_combo, self.end_year_combo):
+            combo.addItems(self.years)
+        period_layout.addWidget(QLabel("Início"), 0, 0)
+        period_layout.addWidget(self.start_month_combo, 0, 1)
+        period_layout.addWidget(self.start_year_combo, 0, 2)
+        period_layout.addWidget(QLabel("Fim"), 1, 0)
+        period_layout.addWidget(self.end_month_combo, 1, 1)
+        period_layout.addWidget(self.end_year_combo, 1, 2)
+
+        ficha_panel = self._panel("Ficha Financeira")
+        ficha_layout = QVBoxLayout(ficha_panel)
+        ficha_layout.setContentsMargins(14, 16, 14, 14)
+        self.ficha_type_combo = QComboBox()
+        self.ficha_type_combo.addItems(["HTML (Layout Padrão)", "PDF (Exportação Direta)"])
+        ficha_layout.addWidget(self.ficha_type_combo)
+
+        top_grid.addWidget(output_panel, 0, 0, 1, 2)
+        top_grid.addWidget(login_panel, 0, 2)
+        top_grid.addWidget(period_panel, 1, 0)
+        top_grid.addWidget(ficha_panel, 1, 1, 1, 2)
+        top_grid.setColumnStretch(0, 1)
+        top_grid.setColumnStretch(1, 1)
+        top_grid.setColumnStretch(2, 1)
+        layout.addLayout(top_grid)
+
+        content_grid = QGridLayout()
+        content_grid.setHorizontalSpacing(16)
+        content_grid.setColumnStretch(0, 3)
+        content_grid.setColumnStretch(1, 2)
+
+        matriculas_panel = self._panel("Matrículas")
+        matriculas_layout = QVBoxLayout(matriculas_panel)
+        matriculas_layout.setContentsMargins(14, 16, 14, 14)
+        matriculas_layout.setSpacing(10)
+        self.matriculas_text = QPlainTextEdit()
+        self.matriculas_text.setPlaceholderText("Matrículas")
+        self.matriculas_text.setMinimumHeight(220)
+        self.matriculas_text.textChanged.connect(self.update_matricula_count)
+        matriculas_actions = QHBoxLayout()
+        self.matricula_count_label = QLabel("0 matrículas")
+        paste_button = QPushButton("Colar")
+        paste_button.setObjectName("secondaryButton")
+        paste_button.setIcon(self.standard_icon("SP_FileDialogContentsView"))
+        paste_button.clicked.connect(self.paste_matriculas)
+        normalize_button = QPushButton("Organizar")
+        normalize_button.setObjectName("secondaryButton")
+        normalize_button.setIcon(self.standard_icon("SP_BrowserReload"))
+        normalize_button.clicked.connect(self.normalize_matriculas)
+        clear_button = QPushButton("Limpar")
+        clear_button.setObjectName("secondaryButton")
+        clear_button.setIcon(self.standard_icon("SP_DialogResetButton"))
+        clear_button.clicked.connect(self.matriculas_text.clear)
+        self.form_buttons.extend([paste_button, normalize_button, clear_button])
+        matriculas_actions.addWidget(self.matricula_count_label)
+        matriculas_actions.addStretch()
+        matriculas_actions.addWidget(paste_button)
+        matriculas_actions.addWidget(normalize_button)
+        matriculas_actions.addWidget(clear_button)
+        matriculas_layout.addWidget(self.matriculas_text, 1)
+        matriculas_layout.addLayout(matriculas_actions)
+
+        processes_panel = self._panel("Rotinas")
+        processes_layout = QVBoxLayout(processes_panel)
+        processes_layout.setContentsMargins(14, 16, 14, 14)
+        processes_layout.setSpacing(10)
+        self.process_tabs = QTabWidget()
+        self.process_tabs.setDocumentMode(True)
+
+        for group_name, actions in PROCESS_GROUPS:
+            tab = QWidget()
+            tab_layout = QVBoxLayout(tab)
+            tab_layout.setContentsMargins(0, 12, 0, 0)
+            tab_layout.setSpacing(8)
+            for label, sequence in actions:
+                button = QPushButton(label)
+                button.setMinimumHeight(42)
+                button.setIcon(self.standard_icon("SP_MediaPlay"))
+                button.clicked.connect(lambda checked=False, seq=sequence: self.start_automation(seq))
+                tab_layout.addWidget(button)
+                self.action_buttons.append(button)
+            tab_layout.addStretch()
+            self.process_tabs.addTab(tab, group_name)
+
+        self.run_all_button = QPushButton("EXECUTAR TUDO")
+        self.run_all_button.setObjectName("dangerButton")
+        self.run_all_button.setMinimumHeight(46)
+        self.run_all_button.setIcon(self.standard_icon("SP_MediaPlay"))
+        self.run_all_button.clicked.connect(lambda: self.start_automation("EXECUTAR TUDO"))
+        self.action_buttons.append(self.run_all_button)
+
+        processes_layout.addWidget(self.process_tabs, 1)
+        processes_layout.addWidget(self.run_all_button)
+
+        content_grid.addWidget(matriculas_panel, 0, 0)
+        content_grid.addWidget(processes_panel, 0, 1)
+        layout.addLayout(content_grid, 1)
+
+        return page
+
+    def _build_progress_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(24, 22, 24, 22)
+        layout.setSpacing(14)
+
+        layout.addWidget(self._section_header("Progresso", "Execução e histórico"))
+
+        status_panel = self._panel("Execução Atual")
+        status_layout = QGridLayout(status_panel)
+        status_layout.setContentsMargins(14, 16, 14, 14)
+        status_layout.setHorizontalSpacing(12)
+        self.general_status_label = QLabel("Pronto")
+        self.general_status_label.setObjectName("largeStatus")
+        self.detail_status_label = QLabel("")
+        self.detail_status_label.setWordWrap(True)
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        status_layout.addWidget(self.general_status_label, 0, 0)
+        status_layout.addWidget(self.progress_bar, 0, 1)
+        status_layout.addWidget(self.detail_status_label, 1, 0, 1, 2)
+        status_layout.setColumnStretch(0, 2)
+        status_layout.setColumnStretch(1, 3)
+        layout.addWidget(status_panel)
+
+        split = QGridLayout()
+        split.setColumnStretch(0, 3)
+        split.setColumnStretch(1, 2)
+        split.setHorizontalSpacing(14)
+
+        tasks_panel = self._panel("Itens")
+        tasks_layout = QVBoxLayout(tasks_panel)
+        tasks_layout.setContentsMargins(14, 16, 14, 14)
+        tasks_layout.setSpacing(10)
+        filter_layout = QHBoxLayout()
+        self.progress_filter = QLineEdit()
+        self.progress_filter.setPlaceholderText("Filtrar progresso")
+        self.progress_filter.textChanged.connect(self.filter_progress_items)
+        filter_layout.addWidget(self.progress_filter)
+        tasks_layout.addLayout(filter_layout)
+        self.progress_tree = QTreeWidget()
+        self.progress_tree.setHeaderLabels(["Item", "Status"])
+        self.progress_tree.setRootIsDecorated(False)
+        self.progress_tree.setAlternatingRowColors(True)
+        self.progress_tree.header().setStretchLastSection(False)
+        self.progress_tree.setColumnWidth(0, 340)
+        tasks_layout.addWidget(self.progress_tree, 1)
+
+        log_panel = self._panel("Log")
+        log_layout = QVBoxLayout(log_panel)
+        log_layout.setContentsMargins(14, 16, 14, 14)
+        log_layout.setSpacing(10)
+        self.log_box = QPlainTextEdit()
+        self.log_box.setReadOnly(True)
+        self.log_box.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
+        self.log_box.setFont(QFont("Consolas", 10))
+
+        log_buttons = QHBoxLayout()
+        copy_log = QPushButton("Copiar")
+        copy_log.setObjectName("secondaryButton")
+        copy_log.setIcon(self.standard_icon("SP_DialogSaveButton"))
+        copy_log.clicked.connect(self.copy_log)
+        clear_log = QPushButton("Limpar")
+        clear_log.setObjectName("secondaryButton")
+        clear_log.setIcon(self.standard_icon("SP_DialogResetButton"))
+        clear_log.clicked.connect(self.log_box.clear)
+        log_buttons.addStretch()
+        log_buttons.addWidget(copy_log)
+        log_buttons.addWidget(clear_log)
+        log_layout.addLayout(log_buttons)
+        log_layout.addWidget(self.log_box, 1)
+
+        split.addWidget(tasks_panel, 0, 0)
+        split.addWidget(log_panel, 0, 1)
+        layout.addLayout(split, 1)
+
+        return page
+
+    def _build_resume_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(24, 22, 24, 22)
+        layout.setSpacing(14)
+
+        layout.addWidget(self._section_header("Retomada", "Checkpoint e continuidade"))
+
+        panel = self._panel("Execução Interrompida")
+        panel_layout = QVBoxLayout(panel)
+        panel_layout.setContentsMargins(14, 16, 14, 14)
+        panel_layout.setSpacing(12)
+
+        self.resume_alert_label = QLabel("Nenhum checkpoint global ou local encontrado.")
+        self.resume_alert_label.setObjectName("resumeAlert")
+        self.resume_alert_label.setWordWrap(True)
+        panel_layout.addWidget(self.resume_alert_label)
+
+        self.resume_details_box = QPlainTextEdit()
+        self.resume_details_box.setReadOnly(True)
+        self.resume_details_box.setMinimumHeight(260)
+        self.resume_details_box.setPlaceholderText("A retomada aparece aqui quando existir checkpoint global ou local.")
+        panel_layout.addWidget(self.resume_details_box, 1)
+
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+
+        refresh_button = QPushButton("Recarregar")
+        refresh_button.setObjectName("secondaryButton")
+        refresh_button.setIcon(self.standard_icon("SP_BrowserReload"))
+        refresh_button.clicked.connect(self.update_resume_status)
+
+        discard_button = QPushButton("Descartar checkpoint")
+        discard_button.setObjectName("dangerButton")
+        discard_button.setIcon(self.standard_icon("SP_DialogDiscardButton"))
+        discard_button.clicked.connect(self.discard_checkpoint)
+
+        self.resume_now_button = QPushButton("Retomar agora")
+        self.resume_now_button.setIcon(self.standard_icon("SP_MediaPlay"))
+        self.resume_now_button.clicked.connect(self.start_resume_from_checkpoint)
+
+        self.form_buttons.extend([refresh_button, discard_button, self.resume_now_button])
+        button_layout.addWidget(refresh_button)
+        button_layout.addWidget(discard_button)
+        button_layout.addWidget(self.resume_now_button)
+        panel_layout.addLayout(button_layout)
+
+        layout.addWidget(panel, 1)
+        return page
+
+    def _build_settings_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(24, 22, 24, 22)
+        layout.setSpacing(14)
+
+        layout.addWidget(self._section_header("Ajustes", "Configuração local"))
+
+        panel = self._panel("Preferências")
+        panel_layout = QVBoxLayout(panel)
+        panel_layout.setContentsMargins(14, 16, 14, 14)
+        panel_layout.setSpacing(10)
+
+        self.save_output_check = QCheckBox("Salvar pasta selecionada")
+        self.save_output_check.setChecked(True)
+        self.clear_after_success_check = QCheckBox("Limpar senha ao finalizar")
+        self.clear_after_success_check.setChecked(True)
+
+        panel_layout.addWidget(self.save_output_check)
+        panel_layout.addWidget(self.clear_after_success_check)
+
+        manual_button = QPushButton("Abrir guia da interface")
+        manual_button.setObjectName("secondaryButton")
+        manual_button.setIcon(self.standard_icon("SP_DialogHelpButton"))
+        manual_button.clicked.connect(self.open_manual)
+        self.form_buttons.append(manual_button)
+        panel_layout.addWidget(manual_button)
+        panel_layout.addStretch()
+
+        layout.addWidget(panel)
+        layout.addStretch()
+        return page
+
+    def _section_header(self, title, subtitle):
+        frame = QFrame()
+        frame.setObjectName("header")
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(3)
+        title_label = QLabel(title)
+        title_label.setObjectName("pageTitle")
+        subtitle_label = QLabel(subtitle)
+        subtitle_label.setObjectName("pageSubtitle")
+        layout.addWidget(title_label)
+        layout.addWidget(subtitle_label)
+        return frame
+
+    def _panel(self, title):
+        group = QGroupBox(title)
+        group.setObjectName("panel")
+        group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        return group
+
+    def show_page(self, index):
+        self.stack.setCurrentIndex(index)
+        for i, button in enumerate(self.nav_buttons):
+            button.setChecked(i == index)
+        if index == 2:
+            self.update_resume_status()
+
+    def refresh_widget_style(self, widget):
+        widget.style().unpolish(widget)
+        widget.style().polish(widget)
+        widget.update()
+
+    def toggle_resume_attention(self):
+        self.resume_pulse_on = not self.resume_pulse_on
+        self.apply_resume_nav_state(load_checkpoint(self.output_base_path) is not None)
+
+    def apply_resume_nav_state(self, has_checkpoint):
+        if self.resume_nav_button is None:
+            return
+        self.resume_nav_button.setText("Retomada !" if has_checkpoint else "Retomada")
+        self.resume_nav_button.setProperty("checkpoint", "true" if has_checkpoint else "false")
+        self.resume_nav_button.setProperty(
+            "pulse",
+            "true" if has_checkpoint and self.resume_pulse_on else "false",
+        )
+        self.refresh_widget_style(self.resume_nav_button)
+
+        if has_checkpoint and not self.resume_attention_timer.isActive():
+            self.resume_attention_timer.start()
+        elif not has_checkpoint and self.resume_attention_timer.isActive():
+            self.resume_attention_timer.stop()
+            self.resume_pulse_on = False
+
+    def current_screen_params(self, sequence_name=None):
+        tipo_ficha = "PDF" if "PDF" in self.ficha_type_combo.currentText() else "HTML"
+        return {
+            "sequence_name": sequence_name,
+            "matriculas": self.get_matriculas(),
+            "periodo": {
+                "inicio": f"{self.start_month_combo.currentText()}/{self.start_year_combo.currentText()}",
+                "fim": f"{self.end_month_combo.currentText()}/{self.end_year_combo.currentText()}",
+            },
+            "config": {"tipo_saida": tipo_ficha},
+        }
+
+    def checkpoint_matches_current_screen(self, checkpoint, sequence_name=None):
+        params = self.current_screen_params(sequence_name)
+        sequence_matches = (
+            sequence_name is None
+            or checkpoint.get("sequence_name") == params["sequence_name"]
+        )
+        return (
+            sequence_matches
+            and checkpoint.get("matriculas") == params["matriculas"]
+            and checkpoint.get("periodo") == params["periodo"]
+            and checkpoint.get("config") == params["config"]
+        )
+
+    def format_checkpoint_details(self, checkpoint):
+        if not checkpoint:
+            return "Nenhum checkpoint encontrado."
+
+        periodo = checkpoint.get("periodo") or {}
+        config = checkpoint.get("config") or {}
+        matriculas = checkpoint.get("matriculas") or []
+        current_state = checkpoint.get("current_process_state") or {}
+        completed_processes = checkpoint.get("completed_processes") or []
+        completed_tasks = current_state.get("completed_task_ids") or []
+        tarefas = checkpoint.get("tarefas") or []
+        preview_matriculas = ", ".join(str(matricula) for matricula in matriculas[:12])
+        if len(matriculas) > 12:
+            preview_matriculas += f" ... (+{len(matriculas) - 12})"
+
+        same_screen = self.checkpoint_matches_current_screen(checkpoint)
+        lines = [
+            f"Status: {'mesmos parâmetros da tela atual' if same_screen else 'parâmetros salvos no checkpoint serão usados'}",
+            f"Última atualização: {checkpoint.get('updated_at', '')}",
+            f"Rotina original: {checkpoint.get('sequence_name', '')}",
+            f"Período original: {periodo.get('inicio', '')} até {periodo.get('fim', '')}",
+            f"Tipo de saída: {config.get('tipo_saida', '')}",
+            f"Etapa atual: {checkpoint.get('current_process') or 'não identificada'}",
+            f"Item atual: {current_state.get('current_task_id') or 'não identificado'}",
+            f"Etapas concluídas: {len(completed_processes)}",
+            f"Itens concluídos na etapa atual: {len(completed_tasks)}",
+            f"Total de matrículas: {len(matriculas)}",
+            f"Matrículas: {preview_matriculas}",
+            "",
+            "Sequência expandida:",
+            ", ".join(tarefas) if tarefas else "Ainda não registrada.",
+            "",
+            f"Checkpoint global: {global_checkpoint_path()}",
+            f"Cópia na saída: {checkpoint_path(checkpoint.get('output_base_path')) if checkpoint.get('output_base_path') else 'não registrada'}",
+        ]
+        return "\n".join(lines)
+
+    def update_resume_status(self):
+        checkpoint = load_checkpoint(self.output_base_path)
+        has_checkpoint = checkpoint is not None
+        self.apply_resume_nav_state(has_checkpoint)
+
+        if not hasattr(self, "resume_alert_label"):
+            return
+
+        self.resume_now_button.setEnabled(has_checkpoint and not (self.worker and self.worker.isRunning()))
+        if has_checkpoint:
+            current = checkpoint.get("current_process") or "etapa não identificada"
+            updated_at = checkpoint.get("updated_at", "")
+            self.resume_alert_label.setText(
+                f"Checkpoint encontrado. Retomada disponível a partir de '{current}' ({updated_at})."
+            )
+            self.resume_alert_label.setProperty("state", "warning")
+            self.resume_details_box.setPlainText(self.format_checkpoint_details(checkpoint))
+        else:
+            self.resume_alert_label.setText("Nenhum checkpoint global ou local encontrado.")
+            self.resume_alert_label.setProperty("state", "empty")
+            self.resume_details_box.setPlainText("Quando uma execução cair, o checkpoint aparecerá aqui.")
+        self.refresh_widget_style(self.resume_alert_label)
+
     def load_config(self):
+        now = datetime.now()
+        config = {}
         try:
             if os.path.exists(CONFIG_FILE):
-                with open(CONFIG_FILE, "r") as f:
-                    config_data = json.load(f)
-                    now = datetime.now()
-                    self.combo_mes_inicio.set(config_data.get("mes_inicio", f"{now.month:02d}"))
-                    self.combo_ano_inicio.set(config_data.get("ano_inicio", str(now.year)))
-                    self.combo_mes_fim.set(config_data.get("mes_fim", f"{now.month:02d}"))
-                    self.combo_ano_fim.set(config_data.get("ano_fim", str(now.year)))
-                    saved_theme = config_data.get("theme", "darkly")
-                    if saved_theme not in ['darkly', 'litera', 'vapor', 'solar']:
-                        saved_theme = 'darkly'
-                    self.app.style.theme_use(saved_theme)
-                    self.theme_switch_var.set(saved_theme in ['litera', 'solar'])
+                with open(CONFIG_FILE, "r", encoding="utf-8") as file:
+                    config = json.load(file)
         except Exception as e:
-            print(f"Erro ao carregar configuração: {e}")
+            self.append_log(f"Erro ao carregar configuração: {e}")
+
+        self.start_month_combo.setCurrentText(config.get("mes_inicio", f"{now.month:02d}"))
+        self.start_year_combo.setCurrentText(config.get("ano_inicio", str(now.year)))
+        self.end_month_combo.setCurrentText(config.get("mes_fim", f"{now.month:02d}"))
+        self.end_year_combo.setCurrentText(config.get("ano_fim", str(now.year)))
+        self.ficha_type_combo.setCurrentText(config.get("tipo_ficha", "HTML (Layout Padrão)"))
+
+        output_path = config.get("output_base_path", "")
+        if output_path:
+            self.output_base_path = output_path
+            self.output_input.setText(output_path)
 
     def save_config(self):
-        current_theme = self.app.style.theme.name
-        theme_to_save = current_theme
-        if current_theme in ['vapor', 'solar']: 
-            theme_to_save = 'darkly' if not self.theme_switch_var.get() else 'litera'
-        config_data = {
-            "mes_inicio": self.combo_mes_inicio.get(), "ano_inicio": self.combo_ano_inicio.get(),
-            "mes_fim": self.combo_mes_fim.get(), "ano_fim": self.combo_ano_fim.get(),
-            "theme": theme_to_save
+        config = {
+            "mes_inicio": self.start_month_combo.currentText(),
+            "ano_inicio": self.start_year_combo.currentText(),
+            "mes_fim": self.end_month_combo.currentText(),
+            "ano_fim": self.end_year_combo.currentText(),
+            "tipo_ficha": self.ficha_type_combo.currentText(),
         }
+        if self.save_output_check.isChecked() and self.output_base_path:
+            config["output_base_path"] = self.output_base_path
+
         try:
-            with open(CONFIG_FILE, "w") as f:
-                json.dump(config_data, f)
+            os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True)
+            with open(CONFIG_FILE, "w", encoding="utf-8") as file:
+                json.dump(config, file, ensure_ascii=False, indent=2)
         except Exception as e:
-            print(f"Erro ao salvar configuração: {e}")
+            self.append_log(f"Erro ao salvar configuração: {e}")
 
     def select_output_folder(self):
-        path = filedialog.askdirectory(title="Selecione a Pasta Principal de Saída")
-        if path:
-            self.output_base_path = path
-            self.path_entry_var.set(self.output_base_path)
-
-    def toggle_theme(self):
-        if self.app.style.theme.name in ['vapor', 'solar']:
+        path = QFileDialog.getExistingDirectory(
+            self,
+            "Selecione a pasta de destino",
+            self.output_base_path or os.path.expanduser("~"),
+        )
+        if not path:
             return
-        new_theme = 'litera' if self.theme_switch_var.get() else 'darkly'
-        self.app.style.theme_use(new_theme)
+        self.output_base_path = path
+        self.output_input.setText(path)
+        self.save_config()
+        self.update_resume_status()
 
-    def activate_theme(self, theme_name, message, is_light):
-        self.app.style.theme_use(theme_name)
-        self.theme_switch_var.set(is_light)
-        messagebox.showinfo("Easter Egg!", message)
+    def open_output_folder(self):
+        if not self.output_base_path:
+            QMessageBox.warning(self, "Pasta de destino", "Selecione uma pasta de destino.")
+            return
+        os.makedirs(self.output_base_path, exist_ok=True)
+        os.startfile(self.output_base_path)
 
-    def vapor_easter_egg_check(self, event):
-        current_time = time.time()
-        if current_time - self.last_click_time > 1:
-            self.vapor_clicks = 0
-        self.last_click_time = current_time
-        self.vapor_clicks += 1
-        if self.vapor_clicks >= 7:
-            self.activate_theme('vapor', "Tema Vaporwave Ativado!", is_light=False)
-            self.vapor_clicks = 0
-            
-    def solar_easter_egg_check(self, event):
-        current_time = time.time()
-        if current_time - self.last_click_time > 1:
-            self.solar_clicks = 0
-        self.last_click_time = current_time
-        self.solar_clicks += 1
-        if self.solar_clicks >= 7:
-            self.activate_theme('solar', "Tema Solar Ativado!", is_light=True)
-            self.solar_clicks = 0
+    def open_manual(self):
+        manual_path = resource_path("GUIA_INTERFACE.html")
+        if not os.path.exists(manual_path):
+            manual_path = os.path.join(app_base_path(), "GUIA_INTERFACE.html")
+        if not os.path.exists(manual_path):
+            manual_path = resource_path("MANUAL_DE_USO.html")
+        if not os.path.exists(manual_path):
+            manual_path = os.path.join(app_base_path(), "MANUAL_DE_USO.html")
+        if not os.path.exists(manual_path):
+            QMessageBox.warning(self, "Manual", "Manual de uso não encontrado.")
+            return
+        os.startfile(manual_path)
 
-    def on_closing(self):
-        if self.automation_thread and self.automation_thread.is_alive():
-            if messagebox.askyesno("Confirmação", "Uma automação está em andamento. Deseja realmente fechar?"):
-                self.save_config()
-                os._exit(0)
-        else:
-            self.save_config()
-            self.app.destroy()
-            
-    def on_text_focus_in(self, event):
-        if self.textbox_matriculas.get("1.0", "end-1c").strip() == "Digite ou cole as matrículas aqui,\numa por linha...":
-            self.textbox_matriculas.delete("1.0", END)
-            default_fg = self.app.style.lookup('TEntry', 'foreground')
-            self.textbox_matriculas.config(foreground=default_fg) 
+    def toggle_password_visibility(self, checked):
+        mode = QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password
+        self.password_input.setEchoMode(mode)
 
-    def on_text_focus_out(self, event):
-        if not self.textbox_matriculas.get("1.0", "end-1c").strip():
-            self.textbox_matriculas.insert("1.0", "Digite ou cole as matrículas aqui,\numa por linha...")
-            self.textbox_matriculas.config(foreground="gray")
+    def get_matriculas(self):
+        text = self.matriculas_text.toPlainText()
+        return [line.strip() for line in text.splitlines() if line.strip()]
 
-    def fade_in(self):
-        alpha = self.app.attributes("-alpha")
-        if alpha < 1:
-            alpha += 0.05
-            self.app.attributes("-alpha", alpha)
-            self.app.after(15, self.fade_in)
+    def update_matricula_count(self):
+        total = len(self.get_matriculas())
+        label = "1 matrícula" if total == 1 else f"{total} matrículas"
+        self.matricula_count_label.setText(label)
+
+    def paste_matriculas(self):
+        text = QApplication.clipboard().text()
+        if not text:
+            return
+        current = self.matriculas_text.toPlainText().rstrip()
+        joined = f"{current}\n{text}" if current else text
+        self.matriculas_text.setPlainText(joined)
+        self.normalize_matriculas()
+
+    def normalize_matriculas(self):
+        text = self.matriculas_text.toPlainText()
+        partes = [p.strip() for p in re.split(r"[\s,;]+", text) if p.strip()]
+        unicas = list(dict.fromkeys(partes))
+        self.matriculas_text.setPlainText("\n".join(unicas))
 
     def start_automation(self, sequence_name):
-        if self.automation_thread and self.automation_thread.is_alive():
-            messagebox.showwarning("Aviso", "Uma automação já está em andamento.")
+        if self.worker and self.worker.isRunning():
+            QMessageBox.information(self, "Automação em andamento", "Aguarde a execução atual terminar.")
             return
-        if not self.output_base_path:
-            messagebox.showerror("Erro", "Por favor, selecione uma pasta de destino primeiro!")
+
+        resume_checkpoint = self.resolve_resume_checkpoint(sequence_name)
+        if resume_checkpoint:
+            checkpoint_output_path = resume_checkpoint.get("output_base_path") or self.output_base_path
+            if not checkpoint_output_path:
+                QMessageBox.warning(
+                    self,
+                    "Checkpoint inválido",
+                    "A retomada não tem pasta de saída salva. Selecione uma pasta antes de continuar.",
+                )
+                return
+            self.output_base_path = checkpoint_output_path
+            self.output_input.setText(checkpoint_output_path)
+            sequence_name = resume_checkpoint.get("sequence_name") or sequence_name
+            matriculas = list(resume_checkpoint.get("matriculas") or [])
+            periodo = dict(resume_checkpoint.get("periodo") or {})
+            config = dict(resume_checkpoint.get("config") or {})
+        else:
+            if not self.output_base_path:
+                QMessageBox.warning(self, "Pasta de destino", "Selecione uma pasta de destino.")
+                return
+            params = self.current_screen_params(sequence_name)
+            matriculas = params["matriculas"]
+            if not matriculas:
+                QMessageBox.warning(self, "Matrículas", "Informe ao menos uma matrícula.")
+                return
+            periodo = params["periodo"]
+            config = params["config"]
+
+        sap_password = self.ensure_sap_password()
+        if not sap_password:
             return
-        
-        input_text = self.textbox_matriculas.get("1.0", "end-1c").strip()
-        if input_text in ["Digite ou cole as matrículas aqui,\numa por linha...", ""]:
-            messagebox.showerror("Erro", "Nenhuma matrícula inserida.")
+
+        self.reset_progress()
+        self.set_busy(True)
+        self.show_page(1)
+        self.save_config()
+
+        self.worker = AutomationWorker(
+            sequence_name,
+            matriculas,
+            periodo,
+            config,
+            self.output_base_path,
+            sap_password,
+            resume_checkpoint=resume_checkpoint,
+        )
+        self.worker.progress.connect(self.handle_progress)
+        self.worker.done.connect(self.finish_automation)
+        self.worker.start()
+
+    def ensure_sap_password(self):
+        sap_password = self.password_input.text()
+        if sap_password.strip():
+            return sap_password
+
+        sap_password, ok = QInputDialog.getText(
+            self,
+            "Senha SAP obrigatória",
+            "Informe a senha do SAP para login e reconexão automática:",
+            QLineEdit.EchoMode.Password,
+        )
+        if not ok or not sap_password.strip():
+            QMessageBox.warning(
+                self,
+                "Senha SAP",
+                "A senha do SAP é obrigatória para iniciar, reconectar e retomar a automação.",
+            )
+            self.password_input.setFocus()
+            return None
+
+        self.password_input.setText(sap_password)
+        return sap_password
+
+    def resolve_resume_checkpoint(self, sequence_name=None):
+        checkpoint = load_checkpoint(self.output_base_path)
+        if not checkpoint:
+            return None
+
+        completed_processes = len(checkpoint.get("completed_processes", []))
+        current = checkpoint.get("current_process") or "etapa não identificada"
+        current_state = checkpoint.get("current_process_state") or {}
+        current_task = current_state.get("current_task_id") or "item ainda não identificado"
+        completed_tasks = len(current_state.get("completed_task_ids", []))
+        checkpoint_sequence = checkpoint.get("sequence_name") or "rotina não identificada"
+        periodo = checkpoint.get("periodo") or {}
+        updated_at = checkpoint.get("updated_at", "")
+        same_screen = self.checkpoint_matches_current_screen(checkpoint, sequence_name)
+        status_parametros = (
+            "A tela atual está com os mesmos parâmetros."
+            if same_screen
+            else "A retomada usará os parâmetros salvos no checkpoint, não os campos atuais da tela."
+        )
+        answer = QMessageBox.question(
+            self,
+            "Retomar execução",
+            (
+                "Foi encontrada uma execução interrompida.\n\n"
+                f"Última atualização: {updated_at}\n"
+                f"Rotina original: {checkpoint_sequence}\n"
+                f"Período original: {periodo.get('inicio', '')} até {periodo.get('fim', '')}\n"
+                f"Etapa atual: {current}\n"
+                f"Item atual: {current_task}\n"
+                f"Etapas concluídas: {completed_processes}\n"
+                f"Itens concluídos na etapa atual: {completed_tasks}\n"
+                f"{status_parametros}\n\n"
+                "Deseja retomar desse ponto?"
+            ),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
+        )
+
+        if answer == QMessageBox.StandardButton.Yes:
+            return checkpoint
+
+        return None
+
+    def start_resume_from_checkpoint(self):
+        if self.worker and self.worker.isRunning():
+            QMessageBox.information(self, "Automação em andamento", "Aguarde a execução atual terminar.")
             return
-            
-        matriculas_lista = [linha.strip() for linha in input_text.split("\n") if linha.strip()]
-        periodo = {"inicio": f"{self.combo_mes_inicio.get()}/{self.combo_ano_inicio.get()}", "fim": f"{self.combo_mes_fim.get()}/{self.combo_ano_fim.get()}"}
-        
-        # Lê a configuração de PDF/HTML
-        tipo_ficha_valor = "PDF" if "PDF" in self.tipo_ficha_var.get() else "HTML"
-        config = {"tipo_saida": tipo_ficha_valor}
 
-        for btn in self.all_buttons:
-            btn.configure(state="disabled")
-        self.show_frame("STATUS")
-        for item in self.progress_list.get_children():
-            self.progress_list.delete(item)
-        self.progress_list_items.clear()
-        
-        self.app.config(cursor="watch")
-        self.automation_thread = threading.Thread(target=self.automation_worker, args=(sequence_name, matriculas_lista, periodo, config), daemon=True)
-        self.automation_thread.start()
-        self.app.after(100, self.process_queue)
+        checkpoint = load_checkpoint(self.output_base_path)
+        if not checkpoint:
+            QMessageBox.information(self, "Retomada", "Nenhum checkpoint encontrado.")
+            self.update_resume_status()
+            return
 
-    def automation_worker(self, sequence_name, matriculas_lista, periodo, config):
-        try:
-            self.progress_queue.put({"type": "status", "geral": "Conectando ao SAP...", "detalhe": ""})
-            session = connect_to_sap()
-            
-            is_mock_mode = 'run_hp_completo' in locals() and run_hp_completo is mock_execute
-            if session is None and not is_mock_mode:
-                raise ConnectionError("Falha na conexão com o SAP. Verifique se o SAP GUI está aberto e logado.")
-            
-            tarefas_para_processar = list(SEQUENCES.get(sequence_name, []))
-            tarefas_finais_para_executar = []
+        sequence_name = checkpoint.get("sequence_name")
+        matriculas = list(checkpoint.get("matriculas") or [])
+        periodo = dict(checkpoint.get("periodo") or {})
+        config = dict(checkpoint.get("config") or {})
+        checkpoint_output_path = checkpoint.get("output_base_path") or self.output_base_path
+        if not sequence_name or not matriculas or not periodo or not checkpoint_output_path:
+            QMessageBox.warning(
+                self,
+                "Checkpoint inválido",
+                "O arquivo de retomada está incompleto. Não é seguro continuar automaticamente.",
+            )
+            return
 
-            while tarefas_para_processar:
-                tarefa = tarefas_para_processar.pop(0)
-                if tarefa in SEQUENCES and tarefa not in PROCESS_MAP:
-                    sub_tarefas = SEQUENCES.get(tarefa, [])
-                    tarefas_para_processar[0:0] = sub_tarefas
-                else:
-                    tarefas_finais_para_executar.append(tarefa)
-            
-            tarefas_finais_para_executar = list(dict.fromkeys(tarefas_finais_para_executar)) 
-            total_procs = len(tarefas_finais_para_executar)
-            
-            for i, processo_nome in enumerate(tarefas_finais_para_executar):
-                progresso_geral = ((i) / total_procs) * 100
-                self.progress_queue.put({"type": "status", "geral": f"Etapa {i+1}/{total_procs}: {processo_nome}", "detalhe": "Iniciando...", "progresso_geral": progresso_geral})
-                
-                if processo_nome in PROCESS_MAP:
-                    funcao_a_executar = PROCESS_MAP[processo_nome]
-                    sucesso, mensagem = funcao_a_executar(session, matriculas_lista, periodo, config, self.output_base_path, progress_queue=self.progress_queue)
-                    if not sucesso:
-                        raise RuntimeError(f"Erro em '{processo_nome}': {mensagem}")
-                else: 
-                    print(f"AVISO: Processo '{processo_nome}' não encontrado no PROCESS_MAP.")
-                    
-            self.progress_queue.put({"type": "success", "msg": f"Sequência '{sequence_name}' concluída!"})
-        except Exception as e:
-            self.progress_queue.put({"type": "error", "msg": str(e)})
-        finally:
-            self.progress_queue.put({"type": "done"})
+        self.output_base_path = checkpoint_output_path
+        self.output_input.setText(checkpoint_output_path)
 
-    def animate_progress(self, target_value):
-        current_value = self.progress_meter.amountusedvar.get()
-        step = (target_value - current_value) / 10
-        def update_step(step_count=0):
-            if step_count < 10:
-                new_value = current_value + step * (step_count + 1)
-                self.progress_meter.amountusedvar.set(round(new_value))
-                self.app.after(20, update_step, step_count + 1)
-            else:
-                self.progress_meter.amountusedvar.set(round(target_value))
-        update_step()
+        sap_password = self.ensure_sap_password()
+        if not sap_password:
+            return
 
-    def process_queue(self):
-        try:
-            while True:
-                msg = self.progress_queue.get_nowait()
-                if msg["type"] == "status":
-                    if "geral" in msg: self.geral_status_var.set(msg["geral"])
-                    if "detalhe" in msg: self.detalhe_status_var.set(msg["detalhe"])
-                    if "progresso_geral" in msg: self.animate_progress(msg["progresso_geral"])
-                elif msg["type"] == "task_update":
-                    task_id = msg.get("task_id")
-                    if task_id not in self.progress_list_items:
-                        item_id = self.progress_list.insert("", END, values=(task_id, "Pendente"))
-                        self.progress_list_items[task_id] = item_id
-                    if task_id in self.progress_list_items:
-                        self.progress_list.item(self.progress_list_items[task_id], values=(task_id, msg["status"]))
-                        if "Executando" in msg["status"]:
-                            self.progress_list.selection_set(self.progress_list_items[task_id])
-                            self.progress_list.see(self.progress_list_items[task_id])
-                elif msg["type"] == "error":
-                    self.app.config(cursor="")
-                    messagebox.showerror("Erro na Execução", msg["msg"])
-                    self.geral_status_var.set("Erro!")
-                    self.detalhe_status_var.set(msg["msg"][:100] + "...")
-                    self.animate_progress(0)
-                elif msg["type"] == "success":
-                    messagebox.showinfo("Concluído", msg["msg"])
-                    self.geral_status_var.set("Sequência concluída com sucesso!")
-                    self.detalhe_status_var.set("")
-                    self.animate_progress(100)
-                    self.save_config()
-                elif msg["type"] == "done":
-                    self.app.config(cursor="")
-                    for btn in self.all_buttons:
-                        btn.configure(state="normal")
-                    return
-        except queue.Empty:
-            self.app.after(100, self.process_queue)
-            
-    def on_resize(self, event):
-        width = self.app.winfo_width()
-        height = self.app.winfo_height()
-        self.debug_label_var.set(f"W: {width}px | H: {height}px")
+        self.reset_progress()
+        self.set_busy(True)
+        self.show_page(1)
+        self.save_config()
+
+        self.worker = AutomationWorker(
+            sequence_name,
+            matriculas,
+            periodo,
+            config,
+            checkpoint_output_path,
+            sap_password,
+            resume_checkpoint=checkpoint,
+        )
+        self.worker.progress.connect(self.handle_progress)
+        self.worker.done.connect(self.finish_automation)
+        self.worker.start()
+
+    def discard_checkpoint(self):
+        checkpoint = load_checkpoint(self.output_base_path)
+        if not checkpoint:
+            self.update_resume_status()
+            return
+
+        answer = QMessageBox.question(
+            self,
+            "Descartar checkpoint",
+            "Deseja descartar a retomada salva?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+
+        clear_checkpoint(checkpoint.get("output_base_path") or self.output_base_path)
+        self.update_resume_status()
+
+    def reset_progress(self):
+        self.progress_tree.clear()
+        self.progress_items.clear()
+        self.log_box.clear()
+        self.progress_filter.clear()
+        self.progress_bar.setValue(0)
+        self.general_status_label.setText("Preparando")
+        self.detail_status_label.setText("")
+
+    def set_busy(self, busy):
+        for button in self.action_buttons:
+            button.setEnabled(not busy)
+        for button in self.form_buttons:
+            button.setEnabled(not busy)
+        self.status_badge.setText("Executando" if busy else "Pronto")
+        self.output_input.setEnabled(not busy)
+        self.password_input.setEnabled(not busy)
+        self.show_password_check.setEnabled(not busy)
+        self.start_month_combo.setEnabled(not busy)
+        self.start_year_combo.setEnabled(not busy)
+        self.end_month_combo.setEnabled(not busy)
+        self.end_year_combo.setEnabled(not busy)
+        self.ficha_type_combo.setEnabled(not busy)
+        self.matriculas_text.setEnabled(not busy)
+
+    def handle_progress(self, msg):
+        tipo = msg.get("type")
+
+        if tipo == "status":
+            if "geral" in msg:
+                self.general_status_label.setText(msg["geral"])
+            if "detalhe" in msg:
+                self.detail_status_label.setText(msg["detalhe"])
+            if "progresso_geral" in msg:
+                self.progress_bar.setValue(round(msg["progresso_geral"]))
+        elif tipo == "task_list":
+            for task_id in msg.get("tasks", []):
+                self.ensure_progress_item(str(task_id), "Pendente")
+        elif tipo == "task_update":
+            self.update_progress_item(str(msg.get("task_id", "")), str(msg.get("status", "")))
+        elif tipo == "log":
+            self.append_log(msg.get("msg", ""))
+        elif tipo == "success":
+            self.append_log(msg.get("msg", ""))
+            self.progress_bar.setValue(100)
+        elif tipo == "error":
+            self.append_log(msg.get("msg", ""))
+            self.general_status_label.setText("Erro")
+            self.detail_status_label.setText(msg.get("msg", ""))
+
+    def ensure_progress_item(self, task_id, status):
+        if not task_id:
+            return None
+        item = self.progress_items.get(task_id)
+        if item is None:
+            item = QTreeWidgetItem([task_id, status])
+            self.progress_tree.addTopLevelItem(item)
+            self.progress_items[task_id] = item
+        else:
+            item.setText(1, status)
+        self.apply_item_color(item, status)
+        self.filter_progress_items(self.progress_filter.text())
+        return item
+
+    def update_progress_item(self, task_id, status):
+        item = self.ensure_progress_item(task_id, status)
+        if item is not None:
+            self.progress_tree.setCurrentItem(item)
+            self.progress_tree.scrollToItem(item)
+
+    def apply_item_color(self, item, status):
+        status_lower = status.lower()
+        if "conclu" in status_lower:
+            color = QColor("#4CA3FF")
+        elif "erro" in status_lower or "não encontrado" in status_lower:
+            color = QColor("#FF5A6A")
+        elif "executando" in status_lower:
+            color = QColor("#DCEBFF")
+        else:
+            color = QColor("#8EA0B6")
+        item.setForeground(1, QBrush(color))
+
+    def filter_progress_items(self, text):
+        text = text.lower().strip()
+        for i in range(self.progress_tree.topLevelItemCount()):
+            item = self.progress_tree.topLevelItem(i)
+            haystack = f"{item.text(0)} {item.text(1)}".lower()
+            item.setHidden(bool(text and text not in haystack))
+
+    def append_log(self, text):
+        if not text:
+            return
+        self.log_box.appendPlainText(text)
+        bar = self.log_box.verticalScrollBar()
+        bar.setValue(bar.maximum())
+
+    def copy_log(self):
+        QApplication.clipboard().setText(self.log_box.toPlainText())
+
+    def finish_automation(self, success, message):
+        self.set_busy(False)
+        self.status_badge.setText("Finalizado" if success else "Falhou")
+        self.general_status_label.setText("Concluído" if success else "Falhou")
+        self.detail_status_label.setText(message)
+        if success:
+            self.progress_bar.setValue(100)
+            if self.clear_after_success_check.isChecked():
+                self.password_input.clear()
+            self.save_config()
+            QMessageBox.information(self, "Concluído", message)
+        else:
+            QMessageBox.critical(self, "Erro na Execução", message)
+        self.update_resume_status()
+
+    def closeEvent(self, event):
+        if self.worker and self.worker.isRunning():
+            resposta = QMessageBox.question(
+                self,
+                "Automação em andamento",
+                "Uma automação está em andamento. Deseja fechar mesmo assim?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if resposta != QMessageBox.StandardButton.Yes:
+                event.ignore()
+                return
+        self.save_config()
+        event.accept()
+
+    def _apply_style(self):
+        self.setStyleSheet("""
+            QMainWindow {
+                background: #101419;
+                color: #E6EDF5;
+            }
+            QFrame#sidebar {
+                background: #0B0F14;
+                border: 0;
+            }
+            QLabel#sidebarTitle {
+                color: #F4F8FF;
+                font-size: 20px;
+                font-weight: 700;
+            }
+            QLabel#sidebarSubtitle {
+                color: #8EA0B6;
+                font-size: 12px;
+            }
+            QPushButton#navButton {
+                background: transparent;
+                color: #B9C7D8;
+                border: 0;
+                border-radius: 6px;
+                padding: 11px 12px;
+                text-align: left;
+                font-weight: 600;
+            }
+            QPushButton#navButton:hover {
+                background: #18202A;
+            }
+            QPushButton#navButton:checked {
+                background: #12365F;
+                color: #FFFFFF;
+                border-left: 3px solid #E5485A;
+            }
+            QPushButton#navButton[checkpoint="true"] {
+                background: #351620;
+                color: #FFFFFF;
+                border-left: 3px solid #D63D4F;
+            }
+            QPushButton#navButton[checkpoint="true"][pulse="true"] {
+                background: #D63D4F;
+                color: #FFFFFF;
+            }
+            QLabel#statusBadge {
+                background: #102A47;
+                color: #DCEBFF;
+                border: 1px solid #2F80D8;
+                border-radius: 6px;
+                padding: 8px 10px;
+                font-weight: 700;
+            }
+            QLabel#pageTitle {
+                color: #F4F8FF;
+                font-size: 24px;
+                font-weight: 750;
+            }
+            QLabel#pageSubtitle {
+                color: #8EA0B6;
+                font-size: 12px;
+            }
+            QGroupBox#panel {
+                background: #171D24;
+                border: 1px solid #2A3441;
+                border-radius: 8px;
+                margin-top: 10px;
+                padding-top: 8px;
+                font-weight: 700;
+                color: #DCEBFF;
+            }
+            QGroupBox#panel::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                background: #171D24;
+                color: #DCEBFF;
+                font-weight: 700;
+                left: 12px;
+                padding: 0 6px;
+            }
+            QLabel#largeStatus {
+                color: #F4F8FF;
+                font-size: 17px;
+                font-weight: 700;
+            }
+            QLabel {
+                color: #D5DFEA;
+            }
+            QLabel#resumeAlert {
+                border-radius: 6px;
+                padding: 12px 14px;
+                font-weight: 700;
+            }
+            QLabel#resumeAlert[state="warning"] {
+                background: #351620;
+                color: #FFE8ED;
+                border: 1px solid #D63D4F;
+            }
+            QLabel#resumeAlert[state="empty"] {
+                background: #102A47;
+                color: #DCEBFF;
+                border: 1px solid #2F80D8;
+            }
+            QLineEdit, QComboBox, QPlainTextEdit, QTreeWidget {
+                background: #0F151C;
+                border: 1px solid #2A3441;
+                border-radius: 6px;
+                padding: 7px 9px;
+                color: #E6EDF5;
+                selection-background-color: #2F80D8;
+                selection-color: #FFFFFF;
+            }
+            QLineEdit:focus, QComboBox:focus, QPlainTextEdit:focus, QTreeWidget:focus {
+                border: 1px solid #2F80D8;
+            }
+            QLineEdit:disabled, QComboBox:disabled, QPlainTextEdit:disabled {
+                background: #151B22;
+                color: #718196;
+                border: 1px solid #252E39;
+            }
+            QPlainTextEdit {
+                font-family: Consolas;
+            }
+            QComboBox::drop-down {
+                border: 0;
+                width: 28px;
+            }
+            QComboBox QAbstractItemView {
+                background: #111821;
+                color: #E6EDF5;
+                border: 1px solid #2A3441;
+                selection-background-color: #2F80D8;
+                selection-color: #FFFFFF;
+                outline: 0;
+            }
+            QTabWidget::pane {
+                border: 1px solid #2A3441;
+                border-radius: 6px;
+                top: -1px;
+            }
+            QTabBar::tab {
+                background: #111821;
+                color: #9DAEC1;
+                padding: 8px 14px;
+                border-top-left-radius: 6px;
+                border-top-right-radius: 6px;
+                margin-right: 4px;
+                font-weight: 600;
+            }
+            QTabBar::tab:selected {
+                background: #172231;
+                color: #FFFFFF;
+                border: 1px solid #2F80D8;
+                border-bottom: 1px solid #172231;
+            }
+            QPushButton {
+                background: #2F80D8;
+                color: white;
+                border: 0;
+                border-radius: 6px;
+                padding: 9px 14px;
+                font-weight: 700;
+            }
+            QPushButton:hover {
+                background: #1E6EC1;
+            }
+            QPushButton:disabled {
+                background: #2A3441;
+                color: #75859A;
+            }
+            QPushButton#secondaryButton {
+                background: #121922;
+                color: #DCEBFF;
+                border: 1px solid #2A3441;
+            }
+            QPushButton#secondaryButton:hover {
+                background: #172231;
+                border: 1px solid #2F80D8;
+            }
+            QPushButton#dangerButton {
+                background: #D63D4F;
+            }
+            QPushButton#dangerButton:hover {
+                background: #B92E3F;
+            }
+            QCheckBox {
+                color: #D5DFEA;
+                spacing: 8px;
+            }
+            QCheckBox::indicator {
+                width: 16px;
+                height: 16px;
+                border-radius: 4px;
+                border: 1px solid #46566A;
+                background: #0F151C;
+            }
+            QCheckBox::indicator:checked {
+                background: #D63D4F;
+                border: 1px solid #D63D4F;
+            }
+            QProgressBar {
+                background: #0F151C;
+                border: 1px solid #2A3441;
+                border-radius: 6px;
+                height: 20px;
+                text-align: center;
+                color: #E6EDF5;
+                font-weight: 700;
+            }
+            QProgressBar::chunk {
+                background: #2F80D8;
+                border-radius: 5px;
+            }
+            QTreeWidget {
+                alternate-background-color: #121922;
+                gridline-color: #2A3441;
+            }
+            QHeaderView::section {
+                background: #172231;
+                color: #DCEBFF;
+                border: 0;
+                border-bottom: 1px solid #2A3441;
+                padding: 8px;
+                font-weight: 700;
+            }
+            QScrollBar:vertical {
+                background: #0F151C;
+                width: 12px;
+                margin: 0;
+            }
+            QScrollBar::handle:vertical {
+                background: #334155;
+                min-height: 28px;
+                border-radius: 5px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #2F80D8;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0;
+            }
+        """)
+
+
+def main():
+    app = QApplication(sys.argv)
+    app.setStyle("Fusion")
+    icon_path = app_icon_path()
+    if icon_path:
+        app.setWindowIcon(QIcon(icon_path))
+    window = SapAutomationWindow()
+    window.showMaximized()
+    sys.exit(app.exec())
+
 
 if __name__ == "__main__":
-    app_window = ttk.Window(themename="darkly")
-    AppSAP(app_window)
-    app_window.mainloop()
+    main()

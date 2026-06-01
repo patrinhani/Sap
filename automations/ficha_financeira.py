@@ -57,6 +57,10 @@ def execute(session, matriculas, periodo, config, output_base_path, progress_que
                 keep_alive(session)
                 last_ping_time = current_time
 
+            if progress_queue and hasattr(progress_queue, "should_skip") and progress_queue.should_skip(task_id):
+                progress_queue.put({"type": "task_update", "task_id": task_id, "status": "✅ Concluído (checkpoint)"})
+                continue
+
             matricula, ano_str = task_id.replace("FF ", "").split(" - ")
             ano = int(ano_str)
             ano_curto = str(ano)[-2:] # Pega os dois últimos dígitos (ex: 2024 -> 24)

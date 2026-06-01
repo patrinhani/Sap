@@ -10,6 +10,9 @@ def execute(session, matriculas, mes, ano, output_base_path, progress_queue=None
         print(f"--- Iniciando processo '{task_id}' para {len(matriculas)} matrículas ---")
         if progress_queue:
             progress_queue.put({"type": "task_list", "tasks": [task_id]})
+            if hasattr(progress_queue, "should_skip") and progress_queue.should_skip(task_id):
+                progress_queue.put({"type": "task_update", "task_id": task_id, "status": "✅ Concluído (checkpoint)"})
+                return True, f"{task_id} já concluído no checkpoint."
             progress_queue.put({"type": "status", "detalhe": f"Processando {len(matriculas)} matrículas para {task_id}"})
             progress_queue.put({"type": "task_update", "task_id": task_id, "status": "Executando..."})
 

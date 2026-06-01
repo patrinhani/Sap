@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Guia da Interface - SAP Automação</title>
+  <style>
+    :root {
+      --bg: #101419;
+      --panel: #171d24;
+      --soft: #0f151c;
+      --line: #2a3441;
+      --text: #e6edf5;
+      --muted: #99aabd;
+      --blue: #2f80d8;
+      --red: #d63d4f;
+      --green: #49b77f;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", Arial, sans-serif;
+      line-height: 1.55;
+    }
+
+    main {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 34px 22px 60px;
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: 34px;
+      line-height: 1.15;
+    }
+
+    h2 {
+      margin: 34px 0 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--line);
+      font-size: 24px;
+    }
+
+    h3 {
+      margin: 18px 0 8px;
+      font-size: 18px;
+    }
+
+    p { margin: 8px 0; }
+    ul, ol { padding-left: 24px; }
+    li { margin: 6px 0; }
+
+    .subtitle {
+      color: var(--muted);
+      margin-bottom: 22px;
+      font-size: 15px;
+    }
+
+    .box {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px 18px;
+      margin: 14px 0;
+    }
+
+    .tip {
+      background: #102a47;
+      border-left: 4px solid var(--blue);
+    }
+
+    .warn {
+      background: #351620;
+      border-left: 4px solid var(--red);
+    }
+
+    .ok {
+      background: #123022;
+      border-left: 4px solid var(--green);
+    }
+
+    .step {
+      display: grid;
+      grid-template-columns: 44px 1fr;
+      gap: 12px;
+      align-items: start;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      margin: 10px 0;
+    }
+
+    .num {
+      width: 32px;
+      height: 32px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--blue);
+      color: white;
+      font-weight: 800;
+    }
+
+    .nav {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .screen {
+      background: var(--soft);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #12365f;
+      border: 1px solid var(--blue);
+      color: #dcecff;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    code {
+      background: var(--soft);
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      padding: 2px 6px;
+      color: #f0f6ff;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    th, td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #172231;
+      color: #fff;
+    }
+
+    tr:last-child td { border-bottom: 0; }
+
+    @media (max-width: 720px) {
+      h1 { font-size: 28px; }
+      .nav { grid-template-columns: 1fr; }
+      .step { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Guia da Interface</h1>
+    <p class="subtitle">SAP Automação - instruções rápidas para operar o aplicativo.</p>
+
+    <div class="box tip">
+      <p>Use este guia para saber onde clicar, o que preencher e como acompanhar uma execução.</p>
+    </div>
+
+    <h2>Antes de Começar</h2>
+    <ul>
+      <li>Confirme se o SAP GUI está instalado no computador.</li>
+      <li>Tenha a senha SAP em mãos.</li>
+      <li>Tenha a lista de matrículas pronta.</li>
+      <li>Escolha uma pasta onde os arquivos serão salvos.</li>
+    </ul>
+
+    <h2>Telas do Aplicativo</h2>
+    <div class="nav">
+      <div class="screen">
+        <h3>Execução</h3>
+        <p>Tela principal. Aqui você escolhe pasta de saída, senha, período, matrículas e rotina.</p>
+      </div>
+      <div class="screen">
+        <h3>Progresso</h3>
+        <p>Mostra o andamento da automação, itens processados e mensagens do log.</p>
+      </div>
+      <div class="screen">
+        <h3>Retomada</h3>
+        <p>Aparece quando existe uma execução interrompida que pode continuar.</p>
+      </div>
+      <div class="screen">
+        <h3>Ajustes</h3>
+        <p>Preferências simples, como salvar pasta selecionada e abrir este guia.</p>
+      </div>
+    </div>
+
+    <h2>Como Executar uma Rotina</h2>
+    <div class="step">
+      <div class="num">1</div>
+      <div>
+        <h3>Selecione a pasta de saída</h3>
+        <p>Na aba <strong>Execução</strong>, clique em <strong>Selecionar</strong> e escolha onde os arquivos serão gerados.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="num">2</div>
+      <div>
+        <h3>Informe a senha SAP</h3>
+        <p>Digite a senha no campo <strong>Senha SAP</strong>. Ela é usada para abrir o SAP e reconectar caso a sessão caia.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="num">3</div>
+      <div>
+        <h3>Escolha o período</h3>
+        <p>Informe mês e ano de início e fim. Exemplo: de <code>01/2025</code> até <code>12/2025</code>.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="num">4</div>
+      <div>
+        <h3>Informe as matrículas</h3>
+        <p>Cole as matrículas no campo de texto. Pode ser uma por linha. Use o botão de normalizar quando quiser organizar a lista.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="num">5</div>
+      <div>
+        <h3>Clique na rotina desejada</h3>
+        <p>Escolha uma rotina no grupo desejado: Holerites, Anuais ou Documentos.</p>
+      </div>
+    </div>
+
+    <h2>Rotinas Disponíveis</h2>
+    <table>
+      <thead>
+        <tr><th>Grupo</th><th>Botões principais</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Holerites</td>
+          <td>HP Completo, HQ Completo, HP + HQ, HP-COM, Massa Completa</td>
+        </tr>
+        <tr>
+          <td>Anuais</td>
+          <td>13º Salário, 1ª Parcela 13º, 2ª Parcela 13º, PLRs</td>
+        </tr>
+        <tr>
+          <td>Documentos</td>
+          <td>Ficha Financeira, CTPS Digital, Ficha + CTPS, HP Individual, ZDP1, ZDP2</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>Como Acompanhar</h2>
+    <div class="box">
+      <p>Depois de iniciar, o aplicativo muda para a aba <strong>Progresso</strong>.</p>
+      <ul>
+        <li><span class="tag">Status</span> mostra a etapa atual.</li>
+        <li><span class="tag">Barra</span> mostra o avanço geral.</li>
+        <li><span class="tag">Itens</span> mostra o que está executando, concluído ou com erro.</li>
+        <li><span class="tag">Log</span> mostra mensagens detalhadas.</li>
+      </ul>
+    </div>
+
+    <h2>Retomada</h2>
+    <div class="box warn">
+      <p>Se o aplicativo cair ou o SAP desconectar, pode aparecer a aba <strong>Retomada</strong> em destaque vermelho.</p>
+    </div>
+    <ul>
+      <li>Clique em <strong>Retomada</strong> para ver onde parou.</li>
+      <li>Clique em <strong>Retomar agora</strong> para continuar.</li>
+      <li>A retomada usa os dados salvos da execução interrompida.</li>
+      <li>Se não quiser continuar, use <strong>Descartar checkpoint</strong>.</li>
+    </ul>
+
+    <h2>Quando Terminar</h2>
+    <div class="box ok">
+      <p>Quando a execução termina com sucesso, o aplicativo mostra uma mensagem de conclusão e limpa automaticamente a retomada pendente.</p>
+    </div>
+
+    <h2>Dicas Rápidas</h2>
+    <ul>
+      <li>Se a senha estiver vazia, o aplicativo vai pedir antes de iniciar.</li>
+      <li>Se a pasta de saída estiver errada, clique em <strong>Selecionar</strong> novamente.</li>
+      <li>Se o SAP pedir permissão de segurança, aguarde: o aplicativo tenta liberar automaticamente.</li>
+      <li>Para consultar arquivos gerados, use o botão <strong>Abrir</strong> ao lado da pasta de saída.</li>
+    </ul>
+  </main>
+</body>
+</html>
